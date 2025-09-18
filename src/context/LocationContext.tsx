@@ -363,20 +363,15 @@ export const useLocation = () => {
   return context;
 };
 
-// Define the background task
 TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
   if (error) {
     console.error('Background location task error:', error);
     return;
   }
+
   if (data) {
     const { locations } = data as { locations: Location.LocationObject[] };
     console.log('Received new locations', locations);
-    
-    // Store locations locally and process distance
-    locations.forEach(async (location) => {
-
-    const storedUser = await getStoredUser();
 
     for (const location of locations) {
       const locationData: LocationData = {
@@ -385,79 +380,19 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
         timestamp: location.timestamp,
         accuracy: location.coords.accuracy || undefined,
       };
-      
+
       try {
-        // Get user info
-        const userStr = await AsyncStorage.getItem('user');
-        if (!userStr) return;
-        
-        const userObj = JSON.parse(userStr);
-        
-        // Store live tracking data in Firebase
-        await storeLiveTrackingData(userObj.id, locationData);
-        
-        // Get existing locations for distance calculation
-        const existingData = await AsyncStorage.getItem('locationHistory');
-        const locationHistory: LocationData[] = existingData ? JSON.parse(existingData) : [];
-        
-        // Calculate and accumulate distance via Google Distance Matrix API
-        if (locationHistory.length > 0) {
-          const prevLocation = locationHistory[locationHistory.length - 1];
-          
-          // Calculate straight-line distance first to filter out very small movements
-          const straightLineDistance = calculateStraightLineDistance(
-            prevLocation.latitude,
-            prevLocation.longitude,
-            locationData.latitude,
-            locationData.longitude
-          );
-          
-          // Only calculate distance if there's meaningful movement (>20m straight line)
-          const timeDiff = locationData.timestamp - prevLocation.timestamp;
-          const minTimeDiff = 15000; // Reduced to 15 seconds minimum
-          
-          if (timeDiff >= minTimeDiff && straightLineDistance > 0.02) { // >20m straight line
-            const distanceKm = await getDrivingDistanceKm(
-              prevLocation.latitude,
-              prevLocation.longitude,
-              locationData.latitude,
-              locationData.longitude
-            );
-            
-            if (distanceKm != null && distanceKm > 0.005) { // Reduced threshold to >5m
-              const currentTotalStr = await AsyncStorage.getItem('totalDistance');
-              const currentTotal = currentTotalStr ? parseFloat(currentTotalStr) : 0;
-              const newTotal = currentTotal + distanceKm;
+        const storedUser = await getStoredUser();
+        await processLocationForDistance(locationData, storedUser?.id ?? null);
 
-              await AsyncStorage.setItem('totalDistance', newTotal.toString());
-
-              // Store in Firebase travelled collection
-              await storeTravelledDistance(userObj.id, distanceKm);
-
-              console.log(`Distance added: ${distanceKm.toFixed(3)} km, Total: ${newTotal.toFixed(2)} km`);
-              console.log(`Straight line: ${straightLineDistance.toFixed(3)} km, API: ${distanceKm.toFixed(3)} km`);
-            } else {
-              console.log('Distance too small or unavailable from Google Distance API.');
-            }
-          } else {
-            console.log(`Skipped distance calc - time: ${timeDiff}ms, distance: ${straightLineDistance.toFixed(3)}km`);
-          }
+        if (!storedUser?.id) {
+          continue;
         }
 
-        // Add new location to history
-        locationHistory.push(locationData);
-        
-        // Keep only last 1000 locations to manage storage
-        if (locationHistory.length > 1000) {
-          locationHistory.splice(0, locationHistory.length - 1000);
-        }
-        
-        await AsyncStorage.setItem('locationHistory', JSON.stringify(locationHistory));
-
-        // Also persist to the old locations collection for backward compatibility
+        // Persist to Firestore (locations history and optional live tracking doc)
         try {
           const historyDoc = {
-            user_id: userObj.id,
+            user_id: storedUser.id,
             latitude: locationData.latitude,
             longitude: locationData.longitude,
             timestamp: locationData.timestamp,
@@ -465,16 +400,17 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
             created_at: serverTimestamp(),
             is_live_tracking: true,
           };
+
           await addDoc(collection(db, 'locations'), historyDoc);
-          
+
           // Update live tracking document if active
-          const liveStatus = await AsyncStorage.getItem(`liveTracking_${userObj.id}`);
+          const liveStatus = await AsyncStorage.getItem(`liveTracking_${storedUser.id}`);
           if (liveStatus === 'true') {
             await setDoc(
-              fsDoc(db, 'live_tracking', userObj.id),
+              fsDoc(db, 'live_tracking', storedUser.id),
               {
-                user_id: userObj.id,
-                name: userObj.name,
+                user_id: storedUser.id,
+                name: storedUser.name,
                 latitude: locationData.latitude,
                 longitude: locationData.longitude,
                 accuracy: locationData.accuracy ?? null,
@@ -485,50 +421,15 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
             );
           }
         } catch (persistErr) {
-          console.error('Failed to persist location to legacy collections:', persistErr);
-
-
-      await processLocationForDistance(locationData, storedUser?.id ?? null);
-
-      if (!storedUser?.id) {
-        continue;
-      }
-
-      // Persist to Firestore (locations history and optional live tracking doc)
-      try {
-        const historyDoc = {
-          user_id: storedUser.id,
-          latitude: locationData.latitude,
-          longitude: locationData.longitude,
-          timestamp: locationData.timestamp,
-          accuracy: locationData.accuracy ?? null,
-          created_at: serverTimestamp(),
-          is_live_tracking: true,
-        };
-        await addDoc(collection(db, 'locations'), historyDoc);
-        // Update live tracking document if active
-        const liveStatus = await AsyncStorage.getItem(`liveTracking_${storedUser.id}`);
-        if (liveStatus === 'true') {
-          await setDoc(
-            fsDoc(db, 'live_tracking', storedUser.id),
-            {
-              user_id: storedUser.id,
-              name: storedUser.name,
-              latitude: locationData.latitude,
-              longitude: locationData.longitude,
-              accuracy: locationData.accuracy ?? null,
-              last_update: serverTimestamp(),
-              timestamp: locationData.timestamp,
-            },
-            { merge: true }
-          );
+          console.error('Failed to persist location to Firestore:', persistErr);
         }
-      } catch (persistErr) {
-        console.error('Failed to persist location to Firestore:', persistErr);
+      } catch (err) {
+        console.error('Error processing location:', err);
       }
     }
   }
 });
+
 
 interface LocationProviderProps {
   children: ReactNode;
@@ -604,45 +505,6 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
     }
   };
 
-  const calculateTotalDistance = async () => {
-    if (!user?.id) {
-      setTotalDistance(0);
-      return;
-    }
-
-    try {
-      // First, try to get from AsyncStorage (accumulated value)
-      const totalDistanceStr = await AsyncStorage.getItem('totalDistance');
-      if (totalDistanceStr) {
-        const localTotal = parseFloat(totalDistanceStr);
-        setTotalDistance(localTotal);
-        
-        // Also try to sync with Firebase travelled data for today
-        if (user?.id) {
-          await refreshTotalDistanceFromFirebase();
-        }
-      const { total: totalKey } = getStorageKeysForUser(user.id);
-      const totalDistanceStr =
-        (await AsyncStorage.getItem(totalKey)) ??
-        (await AsyncStorage.getItem(DEFAULT_TOTAL_KEY));
-
-      if (totalDistanceStr) {
-        const parsed = parseFloat(totalDistanceStr);
-        setTotalDistance(Number.isFinite(parsed) ? parsed : 0);        return;
-      }
-
-      // If no local data, try to get from Firebase
-      if (user?.id) {
-        await refreshTotalDistanceFromFirebase();
-      } else {
-        setTotalDistance(0);
-      }
-    } catch (error) {
-      console.error('Error calculating total distance:', error);
-      setTotalDistance(0);
-    }
-  };
-
   const refreshTotalDistanceFromFirebase = async () => {
     if (!user?.id) return;
     
@@ -672,6 +534,37 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
     } catch (error) {
       console.error('Error refreshing distance from Firebase:', error);
       // Don't change the current value on error, just log it
+    }
+  };
+
+  const calculateTotalDistance = async () => {
+    if (!user?.id) {
+      setTotalDistance(0);
+      return;
+    }
+
+    try {
+      // Prefer per-user stored total, then app-wide default, then legacy key
+      const { total: totalKey } = getStorageKeysForUser(user.id);
+      const totalDistanceStr =
+        (await AsyncStorage.getItem(totalKey)) ??
+        (await AsyncStorage.getItem(DEFAULT_TOTAL_KEY)) ??
+        (await AsyncStorage.getItem('totalDistance'));
+
+      if (totalDistanceStr) {
+        const parsed = parseFloat(totalDistanceStr);
+        setTotalDistance(Number.isFinite(parsed) ? parsed : 0);
+
+        // Also try to sync with Firebase travelled data for today (best-effort)
+        await refreshTotalDistanceFromFirebase();
+        return;
+      }
+
+      // If no local data, try to get from Firebase
+      await refreshTotalDistanceFromFirebase();
+    } catch (error) {
+      console.error('Error calculating total distance:', error);
+      setTotalDistance(0);
     }
   };
 
@@ -775,7 +668,7 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
 
       // Mark live tracking active in Firestore for admin visibility
       await setDoc(
-        fsDoc(db, 'live_tracking', user.id),
+        fsDoc(db, 'live_tracking', user.id!),
         {
           user_id: user.id,
           name: user.name,
@@ -809,8 +702,9 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
 
           // Update live tracking doc and save to locations collection
           try {
+            
             await setDoc(
-              fsDoc(db, 'live_tracking', user.id),
+              fsDoc(db, 'live_tracking', user.id!),
               {
                 latitude: locationData.latitude,
                 longitude: locationData.longitude,
@@ -822,7 +716,9 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
             );
             
             // Store in new Firebase structure
-            await storeLiveTrackingData(user.id, locationData);
+            if (user.id) {
+              await storeLiveTrackingData(user.id, locationData);
+            }
             
             // Keep legacy collection for backward compatibility
             await addDoc(collection(db, 'locations'), {
@@ -867,7 +763,7 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
 
       // Mark live tracking inactive in Firestore
       await setDoc(
-        fsDoc(db, 'live_tracking', user.id),
+        fsDoc(db, 'live_tracking', user.id!),
         { is_active: false, stopped_at: serverTimestamp() },
         { merge: true }
       );
@@ -1011,5 +907,4 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
     </LocationContext.Provider>
   );
 };
-
 export default LocationProvider;
