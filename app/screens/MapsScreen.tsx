@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -20,15 +20,10 @@ import { useLocation } from '../../src/context/LocationContext';
 import { useTheme } from '../../src/context/ThemeContext';
 import Icon from '@expo/vector-icons/MaterialIcons';
 import Constants from 'expo-constants';
-import { getMarkerColor, getMarkerLabel } from '../components/category';
+import { getMarkerColor } from '../components/category';
 import Filter from '../components/filter';
 
 const { width, height } = Dimensions.get('window');
-
-type FilterOptionProps = {
-  allMarkers: Organization[];
-  setFilteredMarkers: (markers: Organization[]) => void;
-};
 
 interface Organization {
   id: string;
@@ -68,12 +63,28 @@ interface Organization {
   addOns?: string;
 }
 
+const LIVE_TRACKING_COLORS = [
+  '#D32F2F',
+  '#1976D2',
+  '#388E3C',
+  '#F57C00',
+  '#7B1FA2',
+  '#0097A7',
+  '#F4511E',
+  '#AFB42B',
+  '#5D4037',
+  '#455A64',
+  '#C2185B',
+  '#00796B',
+];
+
 const MapsScreen: React.FC = () => {
   const { user } = useAuth();
-  const { currentLocation } = useLocation();
+  const { currentLocation, liveUsers, getLiveTrackingUsers } = useLocation();
   const { theme } = useTheme();
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [filteredOrganizations, setFilteredOrganizations] = useState<Organization[]>([]);
+  const [filterMarkers, setFilterMarkers] = useState<Organization[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
@@ -91,6 +102,30 @@ const MapsScreen: React.FC = () => {
   });
 
   useEffect(() => {
+    if (user?.role === 'admin') {
+      getLiveTrackingUsers();
+    }
+  }, [user?.role, getLiveTrackingUsers]);
+
+  const liveUserColors = useMemo<Record<string, string>>(() => {
+    if (liveUsers.length === 0) {
+      return {};
+    }
+
+    const paletteSize = LIVE_TRACKING_COLORS.length;
+    const keyedUsers = liveUsers.map((liveUser, index) => ({
+      key: liveUser.userId || liveUser.name || `user-${index}`,
+    }));
+
+    keyedUsers.sort((a, b) => a.key.localeCompare(b.key));
+
+    return keyedUsers.reduce<Record<string, string>>((acc, entry, index) => {
+      acc[entry.key] = LIVE_TRACKING_COLORS[index % paletteSize];
+      return acc;
+    }, {});
+  }, [liveUsers]);
+
+  useEffect(() => {
     if (user) {
       loadUserAssignedData();
     }
@@ -103,21 +138,23 @@ const MapsScreen: React.FC = () => {
   }, [userAssignedData]);
 
   useEffect(() => {
-    // Apply search filter
-    const filtered = organizations.filter((org) => {
+    const baseMarkers = filterMarkers ?? organizations;
+
+    const filtered = baseMarkers.filter((org) => {
       if (!searchQuery) return true;
+      const query = searchQuery.toLowerCase();
       return (
-        org.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        org.city.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        org.category.toLowerCase().includes(searchQuery.toLowerCase())
+        org.name.toLowerCase().includes(query) ||
+        org.city.toLowerCase().includes(query) ||
+        org.category.toLowerCase().includes(query)
       );
     });
-    
+
     console.log('Total organizations loaded:', organizations.length);
     console.log('Search filtered organizations:', filtered.length);
-    
+
     setFilteredOrganizations(filtered);
-  }, [organizations, searchQuery]);
+  }, [filterMarkers, organizations, searchQuery]);
 
   useEffect(() => {
     // Filter organizations based on user's assigned cities and areas
@@ -321,7 +358,29 @@ const MapsScreen: React.FC = () => {
   };
 
   const getMapRegion = () => {
-    if (filteredOrganizations.length === 0) {
+    const latitudes: number[] = [];
+    const longitudes: number[] = [];
+
+    if (filteredOrganizations.length > 0) {
+      filteredOrganizations.forEach((org) => {
+        latitudes.push(org.latitude);
+        longitudes.push(org.longitude);
+      });
+    }
+
+    if (user?.role === 'admin' && liveUsers.length > 0) {
+      liveUsers.forEach((liveUser) => {
+        latitudes.push(liveUser.location.latitude);
+        longitudes.push(liveUser.location.longitude);
+      });
+    }
+
+    if (latitudes.length === 0 && currentLocation) {
+      latitudes.push(currentLocation.latitude);
+      longitudes.push(currentLocation.longitude);
+    }
+
+    if (latitudes.length === 0) {
       return {
         latitude: 12.9716,
         longitude: 77.5946,
@@ -330,20 +389,17 @@ const MapsScreen: React.FC = () => {
       };
     }
 
-    const latitudes = filteredOrganizations.map(org => org.latitude);
-    const longitudes = filteredOrganizations.map(org => org.longitude);
-    
     const minLat = Math.min(...latitudes);
     const maxLat = Math.max(...latitudes);
     const minLng = Math.min(...longitudes);
     const maxLng = Math.max(...longitudes);
-    
+
     const centerLat = (minLat + maxLat) / 2;
     const centerLng = (minLng + maxLng) / 2;
-    
+
     const deltaLat = Math.max(maxLat - minLat, 0.01) * 1.2;
     const deltaLng = Math.max(maxLng - minLng, 0.01) * 1.2;
-    
+
     return {
       latitude: centerLat,
       longitude: centerLng,
@@ -353,9 +409,20 @@ const MapsScreen: React.FC = () => {
   };
 
   // Handle filter updates from Filter component
-  const handleFilterUpdate = (filteredMarkers: Organization[]) => {
-    console.log('Filter updated, received markers:', filteredMarkers.length);
-    setFilteredOrganizations(filteredMarkers);
+  const handleFilterUpdate = (nextMarkers: Organization[]) => {
+    console.log('Filter updated, received markers:', nextMarkers.length);
+
+    if (organizations.length === 0) {
+      setFilterMarkers(nextMarkers);
+      return;
+    }
+
+    const markerIdSet = new Set(nextMarkers.map((marker) => marker.id));
+    const matchesAllOrganizations =
+      nextMarkers.length === organizations.length &&
+      organizations.every((org) => markerIdSet.has(org.id));
+
+    setFilterMarkers(matchesAllOrganizations ? null : nextMarkers);
   };
 
   if (loading) {
@@ -435,6 +502,28 @@ const MapsScreen: React.FC = () => {
         </View>
       )}
 
+      {user?.role === 'admin' && liveUsers.length > 0 && (
+        <View style={{ paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#E0E0E0', backgroundColor: theme.colors.surface }}>
+          <Text style={{ fontSize: 14, fontWeight: 'bold', marginBottom: 8, color: theme.colors.text }}>Live Tracking Users:</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexDirection: 'row' }}>
+            {liveUsers.map((liveUser, index) => {
+              const colorKey = liveUser.userId || liveUser.name || `user-${index}`;
+              const indicatorColor = liveUserColors[colorKey] || theme.colors.primary;
+              const itemKey = liveUser.userId || `${colorKey}-${index}`;
+
+              return (
+                <View key={itemKey} style={{ flexDirection: 'row', alignItems: 'center', marginRight: 16 }}>
+                  <View style={{ width: 12, height: 12, borderRadius: 6, marginRight: 6, backgroundColor: indicatorColor }} />
+                  <Text style={{ fontSize: 12, fontWeight: '500', color: theme.colors.text }}>
+                    {liveUser.name || liveUser.userId}
+                  </Text>
+                </View>
+              );
+            })}
+          </ScrollView>
+        </View>
+      )}
+
       {/* Google Maps with Markers */}
       <View style={{ flex: 1, marginTop: 4 }}>
         {loading ? (
@@ -476,6 +565,29 @@ const MapsScreen: React.FC = () => {
                 }}
               />
             ))}
+
+            {user?.role === 'admin' && liveUsers.map((liveUser, index) => {
+              const colorKey = liveUser.userId || liveUser.name || `user-${index}`;
+              const markerColor = liveUserColors[colorKey] || theme.colors.primary;
+              const lastUpdatedSeconds = Math.round((Date.now() - liveUser.lastUpdate) / 1000);
+              const minutes = Math.floor(lastUpdatedSeconds / 60);
+              const seconds = lastUpdatedSeconds % 60;
+              const timeLabel = minutes > 0 ? `${minutes}m ${seconds}s ago` : `${seconds}s ago`;
+              const markerKey = liveUser.userId || `${colorKey}-${index}`;
+
+              return (
+                <Marker
+                  key={`live-${markerKey}`}
+                  coordinate={{
+                    latitude: liveUser.location.latitude,
+                    longitude: liveUser.location.longitude,
+                  }}
+                  title={liveUser.name || 'Live User'}
+                  description={`Last updated ${timeLabel}`}
+                  pinColor={markerColor}
+                />
+              );
+            })}
           </MapView>
         )}
         
