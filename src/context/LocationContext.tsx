@@ -35,8 +35,6 @@ const calculateStraightLineDistance = (lat1: number, lon1: number, lat2: number,
 };
 
 // Google Distance Matrix API based distance calculation
-const GOOGLE_API_KEY = "AIzaSyBbYp58aw_mEJuQzEvG-YMAUBvzf8l7kY0";
-=======
 const resolveGoogleApiKey = (): string | undefined => {
   const envKey = (process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY as string | undefined)?.trim();
   if (envKey) {
