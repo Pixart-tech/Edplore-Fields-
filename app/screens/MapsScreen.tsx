@@ -20,7 +20,7 @@ import { useLocation } from '../../src/context/LocationContext';
 import { useTheme } from '../../src/context/ThemeContext';
 import Icon from '@expo/vector-icons/MaterialIcons';
 import Constants from 'expo-constants';
-import { getMarkerColor } from '../components/category';
+import { getMarkerColor, getMarkerLabel } from '../components/category';
 import Filter from '../components/filter';
 
 const { width, height } = Dimensions.get('window');
@@ -549,22 +549,39 @@ const MapsScreen: React.FC = () => {
             provider={PROVIDER_GOOGLE}
             initialRegion={getMapRegion()}
           >
-            {filteredOrganizations.map((org) => (
-              <Marker
-                key={`${org.id}-${org.latitude}-${org.longitude}`}
-                coordinate={{
-                  latitude: org.latitude,
-                  longitude: org.longitude,
-                }}
-                title={org.name}
-                description={`${org.category} • ${org.city}, ${org.state}`}
-                pinColor={getMarkerColor(org.status, org.category)}
-                onPress={() => {
-                  setSelectedOrg(org);
-                  setShowDetails(true);
-                }}
-              />
-            ))}
+            {filteredOrganizations.map((org) => {
+              const markerColor = getMarkerColor(org.status, org.category);
+              const { label, shapeStyle } = getMarkerLabel(org.category);
+
+              return (
+                <Marker
+                  key={`${org.id}-${org.latitude}-${org.longitude}`}
+                  coordinate={{
+                    latitude: org.latitude,
+                    longitude: org.longitude,
+                  }}
+                  title={org.name}
+                  description={`${org.category} • ${org.city}, ${org.state}`}
+                  onPress={() => {
+                    setSelectedOrg(org);
+                    setShowDetails(true);
+                  }}
+                >
+                  <View
+                    style={[
+                      styles.customMarker,
+                      shapeStyle,
+                      {
+                        backgroundColor: markerColor,
+                        borderColor: theme.colors.background,
+                      },
+                    ]}
+                  >
+                    <Text style={styles.customMarkerLabel}>{label}</Text>
+                  </View>
+                </Marker>
+              );
+            })}
 
             {user?.role === 'admin' && liveUsers.map((liveUser, index) => {
               const colorKey = liveUser.userId || liveUser.name || `user-${index}`;
@@ -998,23 +1015,25 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   customMarker: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    minWidth: 30,
+    minHeight: 30,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    borderWidth: 2,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 3,
-    borderColor: '#fff',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
     elevation: 5,
   },
-  markerText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
+  customMarkerLabel: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
   },
   legendContainer: {
     paddingHorizontal: 16,
