@@ -1,8 +1,8 @@
 import { StyleSheet } from 'react-native';
 
 const statusColors: Record<string, string> = {
-  verified: '#28A745',
-  interested: '#05FAA0',
+  'verified': '#28A745',
+  'interested': '#05FAA0',
   'not interested': '#FAB005',
   'demo rejected': '#FFC107',
   'wo demo rejected': '#DC3545',
@@ -20,8 +20,8 @@ const categoryColors: Record<string, string> = {
   'small franchise school': '#00897B',
   'large franchise preschool': '#FFCA28',
   'large franchise school': '#F57C00',
-  delete: '#B0BEC5',
-  none: '#9E9E9E',
+  'delete': '#B0BEC5',
+  'none': '#9E9E9E',
   'no details': '#BDBDBD',
 };
 
