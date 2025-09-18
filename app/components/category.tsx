@@ -1,29 +1,42 @@
-import { useCallback } from 'react';
 import { StyleSheet } from 'react-native';
+
+const statusColors: Record<string, string> = {
+  verified: '#28A745',
+  interested: '#05FAA0',
+  'not interested': '#FAB005',
+  'demo rejected': '#FFC107',
+  'wo demo rejected': '#DC3545',
+  'demo scheduled': '#17A2B8',
+  'waiting for approval': '#007BFF',
+  'sla done': '#6C757D',
+};
+
+const categoryColors: Record<string, string> = {
+  'standalone preschool': '#FF7043',
+  'standalone school': '#42A5F5',
+  'multibranch preschool': '#AB47BC',
+  'multibranch school': '#1E88E5',
+  'small franchise preschool': '#26A69A',
+  'small franchise school': '#00897B',
+  'large franchise preschool': '#FFCA28',
+  'large franchise school': '#F57C00',
+  delete: '#B0BEC5',
+  none: '#9E9E9E',
+  'no details': '#BDBDBD',
+};
 
 export const getMarkerColor = (status: string | undefined, category: string | undefined): string => {
   const trimmedStatus = status?.trim().toLowerCase();
-  const trimmedCategory = category?.trim().toLowerCase();
-  switch (trimmedStatus) {
-    case 'verified': return '#28A745';
-    case 'interested': return '#05faa0';
-    case 'not interested': return '#fab005';
-    case 'demo rejected': return '#FFC107';
-    case 'wo demo rejected': return '#DC3545';
-    case 'demo scheduled': return '#17A2B8';
-    case 'waiting for approval': return '#007BFF';
-    case 'sla done': return '#6C757D';
-    default:
-      if (trimmedCategory === 'standalone school' || 
-          trimmedCategory === 'multibranch school' || 
-          trimmedCategory === 'small franchise school' || 
-          trimmedCategory === 'large franchise school') {
-        return '#964B00';  
-      }
-      else {
-        return '#343A40';  
-      }
+  if (trimmedStatus && statusColors[trimmedStatus]) {
+    return statusColors[trimmedStatus];
   }
+
+  const trimmedCategory = category?.trim().toLowerCase();
+  if (trimmedCategory && categoryColors[trimmedCategory]) {
+    return categoryColors[trimmedCategory];
+  }
+
+  return '#343A40';
 };
 
 export const getMarkerLabel = (category: string | undefined) => {
@@ -36,12 +49,12 @@ export const getMarkerLabel = (category: string | undefined) => {
     'small franchise school': { label: 'SF', shapeStyle: styles.circleShape },
     'large franchise preschool': { label: 'LF', shapeStyle: styles.squareShape },
     'large franchise school': { label: 'LF', shapeStyle: styles.circleShape },
-    'delete': { label: 'D', shapeStyle: styles.Shape },
-    'none': { label: 'N', shapeStyle: styles.Shape },
+    delete: { label: 'D', shapeStyle: styles.Shape },
+    none: { label: 'N', shapeStyle: styles.Shape },
     'no details': { label: 'Z', shapeStyle: styles.Shape },
   };
-  
-  const validCategory = category?.trim().toLowerCase();  // Ensure lowercase category comparison
+
+  const validCategory = category?.trim().toLowerCase();
   if (!validCategory) {
     return { label: 'E', shapeStyle: styles.Shape };
   }
@@ -67,6 +80,8 @@ const styles = StyleSheet.create({
   Shape: {
     width: 50,
     height: 30,
-    borderRadius: 12.5
+    borderRadius: 12.5,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

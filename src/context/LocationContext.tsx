@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -34,9 +34,6 @@ const calculateStraightLineDistance = (lat1: number, lon1: number, lat2: number,
   return distance;
 };
 
-// Google Distance Matrix API based distance calculation
-const GOOGLE_API_KEY = "AIzaSyBbYp58aw_mEJuQzEvG-YMAUBvzf8l7kY0";
-=======
 const resolveGoogleApiKey = (): string | undefined => {
   const envKey = (process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY as string | undefined)?.trim();
   if (envKey) {
@@ -85,46 +82,35 @@ const getDrivingDistanceKm = async (
   destLng: number
 ): Promise<number | null> => {
   if (!GOOGLE_API_KEY) {
-    console.warn('Google Distance API not configured, using straight-line distance');
-    const straightLineKm = calculateStraightLineDistance(originLat, originLng, destLat, destLng);
-    return straightLineKm * 1.3; // Add 30% for road routing vs straight line
+    console.warn('Google Distance API is not configured; skipping distance calculation.');
+    return null;
   }
-  
+
   const url = `https://maps.googleapis.com/maps/api/distancematrix/json?units=metric&origins=${encodeURIComponent(
     `${originLat},${originLng}`
   )}&destinations=${encodeURIComponent(`${destLat},${destLng}`)}&mode=driving&key=${GOOGLE_API_KEY}`;
-  
+
   try {
     const res = await fetch(url);
     if (!res.ok) {
       console.warn(`Google Distance API request failed: ${res.status} ${res.statusText}`);
-      // Fallback to straight-line distance with road factor
-      const straightLineKm = calculateStraightLineDistance(originLat, originLng, destLat, destLng);
-      return straightLineKm * 1.3;
+      return null;
     }
-    
+
     const data = await res.json();
     const el = data?.rows?.[0]?.elements?.[0];
-    
+
     if (el?.status === 'OK' && el?.distance?.value != null) {
       const distanceKm = el.distance.value / 1000; // meters to km
       console.log(`Distance calculated: ${distanceKm.toFixed(3)} km (Google API)`);
       return distanceKm;
     } else {
       console.warn(`Google Distance API error: ${el?.status || 'Unknown error'}`);
-      // Fallback to straight-line distance with road factor
-      const straightLineKm = calculateStraightLineDistance(originLat, originLng, destLat, destLng);
-      const fallbackDistance = straightLineKm * 1.3;
-      console.log(`Using fallback distance: ${fallbackDistance.toFixed(3)} km (straight-line * 1.3)`);
-      return fallbackDistance;
+      return null;
     }
   } catch (error) {
     console.warn('Google Distance API request failed:', error);
-    // Fallback to straight-line distance with road factor
-    const straightLineKm = calculateStraightLineDistance(originLat, originLng, destLat, destLng);
-    const fallbackDistance = straightLineKm * 1.3;
-    console.log(`Using fallback distance: ${fallbackDistance.toFixed(3)} km (error fallback)`);
-    return fallbackDistance;
+    return null;
   }
 };
 
@@ -442,16 +428,16 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
               const currentTotalStr = await AsyncStorage.getItem('totalDistance');
               const currentTotal = currentTotalStr ? parseFloat(currentTotalStr) : 0;
               const newTotal = currentTotal + distanceKm;
-              
+
               await AsyncStorage.setItem('totalDistance', newTotal.toString());
-              
+
               // Store in Firebase travelled collection
               await storeTravelledDistance(userObj.id, distanceKm);
-              
+
               console.log(`Distance added: ${distanceKm.toFixed(3)} km, Total: ${newTotal.toFixed(2)} km`);
               console.log(`Straight line: ${straightLineDistance.toFixed(3)} km, API: ${distanceKm.toFixed(3)} km`);
             } else {
-              console.log(`Distance too small or API failed: ${distanceKm} km`);
+              console.log('Distance too small or unavailable from Google Distance API.');
             }
           } else {
             console.log(`Skipped distance calc - time: ${timeDiff}ms, distance: ${straightLineDistance.toFixed(3)}km`);
@@ -912,7 +898,7 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
     return stopUnifiedTracking();
   };
 
-  const getLiveTrackingUsers = async (): Promise<void> => {
+  const getLiveTrackingUsers = useCallback(async (): Promise<void> => {
     if (!user || user.role !== 'admin') return;
 
     try {
@@ -952,7 +938,7 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
       // Set empty array on error to prevent UI issues
       setLiveUsers([]);
     }
-  };
+  }, [user]);
 
   // Check live tracking status on app start
   useEffect(() => {
@@ -974,10 +960,11 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
 
     // For admin, start polling for live users
     if (user?.role === 'admin') {
+      getLiveTrackingUsers();
       const adminInterval = setInterval(getLiveTrackingUsers, 15000); // Poll every 15 seconds
       return () => clearInterval(adminInterval);
     }
-  }, [user]);
+  }, [user, getLiveTrackingUsers]);
 
   // Cleanup on unmount
   useEffect(() => {
