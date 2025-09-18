@@ -14,7 +14,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { db } from '../../src/firebase';
 import { collection, addDoc, doc, getDoc } from 'firebase/firestore';
-import { MapView, Marker, PROVIDER_GOOGLE } from '../components/SimpleMapComponent';
+import { MapView, PROVIDER_GOOGLE } from '../components/SimpleMapComponent';
 import { useAuth } from '../../src/context/AuthContext';
 import { useLocation } from '../../src/context/LocationContext';
 import { useTheme } from '../../src/context/ThemeContext';
@@ -22,6 +22,7 @@ import Icon from '@expo/vector-icons/MaterialIcons';
 import Constants from 'expo-constants';
 import { getMarkerColor, getMarkerLabel } from '../components/category';
 import Filter from '../components/filter';
+import { Region as MapRegion, Marker, Region } from 'react-native-maps';
 
 const { width, height } = Dimensions.get('window');
 
@@ -560,24 +561,23 @@ const MapsScreen: React.FC = () => {
                     latitude: org.latitude,
                     longitude: org.longitude,
                   }}
-                  title={org.name}
-                  description={`${org.category} • ${org.city}, ${org.state}`}
                   onPress={() => {
                     setSelectedOrg(org);
                     setShowDetails(true);
                   }}
+                  title={org.name}
+                  description={org.category}
                 >
                   <View
                     style={[
                       styles.customMarker,
+                      { backgroundColor: markerColor },
                       shapeStyle,
-                      {
-                        backgroundColor: markerColor,
-                        borderColor: theme.colors.background,
-                      },
                     ]}
                   >
-                    <Text style={styles.customMarkerLabel}>{label}</Text>
+                    <Text style={styles.customMarkerLabel}>
+                      {label}
+                    </Text>
                   </View>
                 </Marker>
               );

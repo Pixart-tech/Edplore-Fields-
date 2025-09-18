@@ -49,37 +49,40 @@ export const getMarkerLabel = (category: string | undefined) => {
     'small franchise school': { label: 'SF', shapeStyle: styles.circleShape },
     'large franchise preschool': { label: 'LF', shapeStyle: styles.squareShape },
     'large franchise school': { label: 'LF', shapeStyle: styles.circleShape },
-    delete: { label: 'D', shapeStyle: styles.Shape },
-    none: { label: 'N', shapeStyle: styles.Shape },
-    'no details': { label: 'Z', shapeStyle: styles.Shape },
+    'delete': { label: 'D', shapeStyle: styles.diamondShape },
+    'none': { label: 'N', shapeStyle: styles.diamondShape },
+    'no details': { label: 'Z', shapeStyle: styles.diamondShape },
   };
 
   const validCategory = category?.trim().toLowerCase();
   if (!validCategory) {
-    return { label: 'E', shapeStyle: styles.Shape };
+    return { label: 'E', shapeStyle: styles.diamondShape };
   }
 
-  return categoryShapes[validCategory] || { label: 'E', shapeStyle: styles.Shape };
+  return categoryShapes[validCategory] || { label: 'E', shapeStyle: styles.diamondShape };
 };
 
 const styles = StyleSheet.create({
   squareShape: {
-    width: 30,
-    height: 30,
-    borderRadius: 0,
+    width: 32,
+    height: 32,
+    borderRadius: 4,
     justifyContent: 'center',
     alignItems: 'center',
   },
   circleShape: {
-    width: 30,
-    height: 30,
-    borderRadius: 50,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  Shape: {
-    width: 50,
-    height: 30,
-    borderRadius: 12.5,
+  diamondShape: {
+    width: 32,
+    height: 32,
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+    // Removed rotation to keep text readable - diamond effect created by border radius
   },
 });

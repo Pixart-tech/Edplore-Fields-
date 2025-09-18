@@ -1,6 +1,6 @@
 export default ({ config }) => ({
   ...config,
-  name: "frontend",
+  name: "EdploreFiels",
   slug: "frontend",
   version: "1.0.0",
   orientation: "portrait",
@@ -12,6 +12,7 @@ export default ({ config }) => ({
     supportsTablet: true,
   },
   android: {
+    package: "com.pixart.edplorefields", 
     adaptiveIcon: {
       foregroundImage: "./assets/images/adaptive-icon.png",
       backgroundColor: "#000",
@@ -39,6 +40,9 @@ export default ({ config }) => ({
     typedRoutes: true,
   },
   extra: {
+    eas: {
+      projectId: "dbe1cdef-a922-4558-997b-3de6e63f41f6",
+    },
     googleMapsApiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY,
   },
 });
