@@ -49,8 +49,8 @@ export const getMarkerLabel = (category: string | undefined) => {
     'small franchise school': { label: 'SF', shapeStyle: styles.circleShape },
     'large franchise preschool': { label: 'LF', shapeStyle: styles.squareShape },
     'large franchise school': { label: 'LF', shapeStyle: styles.circleShape },
-    'delete': { label: 'D', shapeStyle: styles.Shape },
-    'none': { label: 'N', shapeStyle: styles.Shape },
+    delete: { label: 'D', shapeStyle: styles.Shape },
+    none: { label: 'N', shapeStyle: styles.Shape },
     'no details': { label: 'Z', shapeStyle: styles.Shape },
   };
 
