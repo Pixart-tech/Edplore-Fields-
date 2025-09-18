@@ -20,15 +20,10 @@ import { useLocation } from '../../src/context/LocationContext';
 import { useTheme } from '../../src/context/ThemeContext';
 import Icon from '@expo/vector-icons/MaterialIcons';
 import Constants from 'expo-constants';
-import { getMarkerColor, getMarkerLabel } from '../components/category';
+import { getMarkerColor } from '../components/category';
 import Filter from '../components/filter';
 
 const { width, height } = Dimensions.get('window');
-
-type FilterOptionProps = {
-  allMarkers: Organization[];
-  setFilteredMarkers: (markers: Organization[]) => void;
-};
 
 interface Organization {
   id: string;
@@ -74,6 +69,7 @@ const MapsScreen: React.FC = () => {
   const { theme } = useTheme();
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [filteredOrganizations, setFilteredOrganizations] = useState<Organization[]>([]);
+  const [filterMarkers, setFilterMarkers] = useState<Organization[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
@@ -103,21 +99,23 @@ const MapsScreen: React.FC = () => {
   }, [userAssignedData]);
 
   useEffect(() => {
-    // Apply search filter
-    const filtered = organizations.filter((org) => {
+    const baseMarkers = filterMarkers ?? organizations;
+
+    const filtered = baseMarkers.filter((org) => {
       if (!searchQuery) return true;
+      const query = searchQuery.toLowerCase();
       return (
-        org.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        org.city.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        org.category.toLowerCase().includes(searchQuery.toLowerCase())
+        org.name.toLowerCase().includes(query) ||
+        org.city.toLowerCase().includes(query) ||
+        org.category.toLowerCase().includes(query)
       );
     });
-    
+
     console.log('Total organizations loaded:', organizations.length);
     console.log('Search filtered organizations:', filtered.length);
-    
+
     setFilteredOrganizations(filtered);
-  }, [organizations, searchQuery]);
+  }, [filterMarkers, organizations, searchQuery]);
 
   useEffect(() => {
     // Filter organizations based on user's assigned cities and areas
@@ -353,9 +351,20 @@ const MapsScreen: React.FC = () => {
   };
 
   // Handle filter updates from Filter component
-  const handleFilterUpdate = (filteredMarkers: Organization[]) => {
-    console.log('Filter updated, received markers:', filteredMarkers.length);
-    setFilteredOrganizations(filteredMarkers);
+  const handleFilterUpdate = (nextMarkers: Organization[]) => {
+    console.log('Filter updated, received markers:', nextMarkers.length);
+
+    if (organizations.length === 0) {
+      setFilterMarkers(nextMarkers);
+      return;
+    }
+
+    const markerIdSet = new Set(nextMarkers.map((marker) => marker.id));
+    const matchesAllOrganizations =
+      nextMarkers.length === organizations.length &&
+      organizations.every((org) => markerIdSet.has(org.id));
+
+    setFilterMarkers(matchesAllOrganizations ? null : nextMarkers);
   };
 
   if (loading) {
