@@ -9,6 +9,7 @@ import {
   ScrollView,
   ActivityIndicator,
   StyleSheet,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { db } from '../../src/firebase';
@@ -62,6 +63,46 @@ const MapsScreen: React.FC = () => {
     description: '',
     scheduledTime: '',
   });
+
+  const handlePhonePress = useCallback((phone?: string) => {
+    if (!phone) {
+      return;
+    }
+
+    const normalized = phone.replace(/[\s()-]/g, '').trim();
+    if (!normalized || !/\d/.test(normalized)) {
+      return;
+    }
+
+    Linking.openURL(`tel:${normalized}`);
+  }, []);
+
+  const handleWhatsAppPress = useCallback((whatsapp?: string) => {
+    if (!whatsapp) {
+      return;
+    }
+
+    const digitsOnly = whatsapp.replace(/\D/g, '');
+    if (!digitsOnly) {
+      return;
+    }
+
+    Linking.openURL(`https://wa.me/${digitsOnly}`);
+  }, []);
+
+  const handleWebsitePress = useCallback((website?: string) => {
+    if (!website) {
+      return;
+    }
+
+    const trimmed = website.trim();
+    if (!trimmed) {
+      return;
+    }
+
+    const url = trimmed.startsWith('http://') || trimmed.startsWith('https://') ? trimmed : `https://${trimmed}`;
+    Linking.openURL(url);
+  }, []);
 
   const handleOrganizationPress = useCallback((organization: Organization) => {
     setSelectedOrg(organization);
@@ -607,6 +648,134 @@ const MapsScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
 
+            <ScrollView style={{ padding: 20 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+                <Icon name="business" size={20} color={theme.colors.primary} />
+                <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
+                  {selectedOrg?.category}
+                </Text>
+              </View>
+
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+                <Icon name="location-city" size={20} color={theme.colors.primary} />
+                <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
+                  {selectedOrg?.city}, {selectedOrg?.state}
+                </Text>
+              </View>
+
+              {selectedOrg?.contact && (
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}
+                  onPress={() => handlePhonePress(selectedOrg.contact)}
+                  activeOpacity={0.7}
+                >
+                  <Icon name="phone" size={20} color={theme.colors.primary} />
+                  <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
+                    {selectedOrg.contact}
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              {selectedOrg?.description && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+                  <Icon name="info" size={20} color={theme.colors.primary} />
+                  <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
+                    {selectedOrg.description}
+                  </Text>
+                </View>
+              )}
+
+              {selectedOrg?.type && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+                  <Icon name="category" size={20} color={theme.colors.primary} />
+                  <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
+                    Type: {selectedOrg.type}
+                  </Text>
+                </View>
+              )}
+
+              {selectedOrg?.ratings && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+                  <Icon name="star" size={20} color={theme.colors.primary} />
+                  <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
+                    Ratings: {selectedOrg.ratings}
+                  </Text>
+                </View>
+              )}
+
+              {selectedOrg?.website && (
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}
+                  onPress={() => handleWebsitePress(selectedOrg.website)}
+                  activeOpacity={0.7}
+                >
+                  <Icon name="web" size={20} color={theme.colors.primary} />
+                  <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
+                    Website: {selectedOrg.website}
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              {selectedOrg?.numberOfStudents && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+                  <Icon name="school" size={20} color={theme.colors.primary} />
+                  <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
+                    Students: {selectedOrg.numberOfStudents}
+                  </Text>
+                </View>
+              )}
+
+              {selectedOrg?.decisionMakerName && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+                  <Icon name="person" size={20} color={theme.colors.primary} />
+                  <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
+                    Decision Maker: {selectedOrg.decisionMakerName}
+                  </Text>
+                </View>
+              )}
+
+              {selectedOrg?.phoneDM && (
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}
+                  onPress={() => handlePhonePress(selectedOrg.phoneDM)}
+                  activeOpacity={0.7}
+                >
+                  <Icon name="phone" size={20} color={theme.colors.primary} />
+                  <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
+                    DM Phone: {selectedOrg.phoneDM}
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              {selectedOrg?.whatsapp && (
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}
+                  onPress={() => handleWhatsAppPress(selectedOrg.whatsapp)}
+                  activeOpacity={0.7}
+                >
+                  <Icon name="chat" size={20} color={theme.colors.primary} />
+                  <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
+                    WhatsApp: {selectedOrg.whatsapp}
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              {selectedOrg?.eventTitle && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+                  <Icon name="event" size={20} color={theme.colors.primary} />
+                  <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
+                    Event: {selectedOrg.eventTitle}
+                  </Text>
+                </View>
+              )}
+
+              {selectedOrg?.startDate && selectedOrg?.startTime && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+                  <Icon name="schedule" size={20} color={theme.colors.primary} />
+                  <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
+                    Start: {selectedOrg.startDate} at {selectedOrg.startTime}
+                  </Text>
+                </View>
             <ScrollView style={styles.modalBody}>
               {selectedOrg && (
                 <>
