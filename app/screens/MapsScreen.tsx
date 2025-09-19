@@ -20,7 +20,19 @@ import LoadingState from './maps/LoadingState';
 import MapContent from './maps/MapContent';
 import SearchBar from './maps/SearchBar';
 import styles from './maps/styles';
-import { INITIAL_EDIT_FORM, INITIAL_MEETING_FORM, LIVE_TRACKING_COLORS } from './maps/constants';
+import {
+  INITIAL_EDIT_FORM,
+  INITIAL_MEETING_FORM,
+  LIVE_TRACKING_COLORS,
+  CATEGORY_OPTIONS,
+  CURRENT_PUBLICATION_OPTIONS,
+  CURRENT_STATUS_OPTIONS,
+  CURRENT_STATUS_DETAIL_OPTIONS,
+  WHATSAPP_OPTIONS,
+  GUEST_OPTIONS,
+  ADD_ON_OPTIONS,
+  FORM_ENTRY_IDS,
+} from './maps/constants';
 import type { AssignedAreaData } from './maps/types';
 
 const MapsScreen: React.FC = () => {
@@ -55,15 +67,7 @@ const MapsScreen: React.FC = () => {
     return match ? decodeURIComponent(match[1]) : '';
   }, []);
 
-  const categoryOptions = useMemo(() => {
-    const categories = new Set<string>();
-    organizations.forEach((org) => {
-      if (org.category && org.category.trim() !== '') {
-        categories.add(org.category.trim());
-      }
-    });
-    return Array.from(categories).sort((a, b) => a.localeCompare(b));
-  }, [organizations]);
+  const categoryOptions = CATEGORY_OPTIONS;
 
   const categoryLegendItems = useMemo(() => {
     const seen = new Set<string>();
@@ -399,26 +403,67 @@ const MapsScreen: React.FC = () => {
     setSelectedCategory(resolvedCategory);
     setPreviousSchoolsValue(previousSchools ? previousSchools : null);
 
+    const publicationName = selectedOrg.currentPublicationName?.trim() ?? '';
+    const publicationInOptions = publicationName && CURRENT_PUBLICATION_OPTIONS.includes(publicationName);
+    const currentPublication = publicationInOptions ? publicationName : publicationName ? 'Other' : '';
+    const currentPublicationOther = publicationInOptions ? '' : publicationName;
+
+    const whatsappValue = selectedOrg.whatsapp && WHATSAPP_OPTIONS.includes(selectedOrg.whatsapp)
+      ? selectedOrg.whatsapp
+      : '';
+
+    const guestList = selectedOrg.guests
+      ? selectedOrg.guests
+          .split(',')
+          .map((guest) => guest.trim())
+          .filter(Boolean)
+      : [];
+    const selectedGuests = guestList.filter((guest) => GUEST_OPTIONS.includes(guest));
+    const additionalGuests = guestList.filter((guest) => !GUEST_OPTIONS.includes(guest)).join(', ');
+
+    const addOnList = selectedOrg.addOns
+      ? selectedOrg.addOns
+          .split(',')
+          .map((item) => item.trim())
+          .filter(Boolean)
+      : [];
+    const recognizedAddOns = addOnList.filter((item) => ADD_ON_OPTIONS.includes(item));
+    const otherAddOns = addOnList.filter((item) => !ADD_ON_OPTIONS.includes(item));
+    const addOnsSelection = Array.from(
+      new Set(
+        recognizedAddOns
+          .filter((item) => item !== 'Other')
+          .concat(otherAddOns.length > 0 || recognizedAddOns.includes('Other') ? ['Other'] : [])
+      )
+    );
+    const addOnsOther = otherAddOns.join(', ');
+
     setEditFormData({
       name: selectedOrg.name,
       address: selectedOrg.address,
       contact: selectedOrg.contact ?? '',
-      whatsapp: selectedOrg.whatsapp ?? '',
+      whatsapp: whatsappValue,
       category: resolvedCategory,
       pulseCode: selectedOrg.pulseCode ?? '',
       status: selectedOrg.status ?? '',
+      currentPublication,
+      currentPublicationOther,
       currentStatus: selectedOrg.currentStatus ?? '',
       currentStatusDetails: selectedOrg.currentStatusDetails ?? '',
       assignee: selectedOrg.assignee ?? '',
+      guests: selectedGuests,
+      additionalGuests,
+      addOns: addOnsSelection,
+      addOnsOther,
     });
     setShowDetails(false);
     setShowEditForm(true);
   }, [extractFormEntryValue, selectedOrg]);
 
   const handleEditInputChange = useCallback(
-    (field: keyof EditFormState, value: string) => {
+    (field: keyof EditFormState, value: EditFormState[keyof EditFormState]) => {
       setEditFormData((prev) => ({ ...prev, [field]: value }));
-      if (field === 'category') {
+      if (field === 'category' && typeof value === 'string') {
         setSelectedCategory(value);
       }
     },
@@ -490,6 +535,40 @@ const MapsScreen: React.FC = () => {
       return;
     }
 
+    const resolvedPublication =
+      editFormData.currentPublication === 'Other'
+        ? editFormData.currentPublicationOther.trim()
+        : editFormData.currentPublication;
+
+    const guestEntries = new Set<string>();
+    editFormData.guests.forEach((guest) => {
+      const trimmed = guest.trim();
+      if (trimmed) {
+        guestEntries.add(trimmed);
+      }
+    });
+    editFormData.additionalGuests
+      .split(',')
+      .map((guest) => guest.trim())
+      .filter(Boolean)
+      .forEach((guest) => guestEntries.add(guest));
+    const guestsValue = Array.from(guestEntries).join(', ');
+
+    const addOnEntries: string[] = [];
+    editFormData.addOns.forEach((item) => {
+      if (item !== 'Other' && item.trim()) {
+        addOnEntries.push(item.trim());
+      }
+    });
+    if (editFormData.addOns.includes('Other')) {
+      editFormData.addOnsOther
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .forEach((item) => addOnEntries.push(item));
+    }
+    const addOnsValue = Array.from(new Set(addOnEntries)).join(', ');
+
     const updatedOrg: Organization = {
       ...selectedOrg,
       name: editFormData.name,
@@ -502,6 +581,9 @@ const MapsScreen: React.FC = () => {
       currentStatus: editFormData.currentStatus,
       currentStatusDetails: editFormData.currentStatusDetails,
       assignee: editFormData.assignee,
+      currentPublicationName: resolvedPublication,
+      guests: guestsValue,
+      addOns: addOnsValue,
     };
 
     setOrganizations((prev) => prev.map((org) => (org.id === updatedOrg.id ? updatedOrg : org)));
@@ -574,28 +656,93 @@ const MapsScreen: React.FC = () => {
     }
 
     let updatedUrl = formURL;
-
-    if (selectedCategory) {
-      const encodedCategory = encodeURIComponent(selectedCategory);
-      if (updatedUrl.includes('entry.1748805668=')) {
-        updatedUrl = updatedUrl.replace(/entry\.1748805668=[^&]*/, `entry.1748805668=${encodedCategory}`);
-      } else {
-        updatedUrl += `${updatedUrl.includes('?') ? '&' : '?'}entry.1748805668=${encodedCategory}`;
+    const applyEntryValue = (
+      url: string,
+      entryId: string,
+      value: string,
+      options?: { append?: boolean }
+    ) => {
+      const trimmed = value.trim();
+      if (!trimmed) {
+        return url;
       }
-    }
 
-    if (editFormData.currentStatusDetails) {
-      const encodedDetails = encodeURIComponent(editFormData.currentStatusDetails);
-      if (updatedUrl.includes('entry.1523910384=')) {
-        const currentValue = updatedUrl.match(/entry\.1523910384=([^&]*)/);
-        if (currentValue) {
-          const newValue = `${currentValue[1]}%0A${encodedDetails}`;
-          updatedUrl = updatedUrl.replace(/entry\.1523910384=[^&]*/, `entry.1523910384=${newValue}`);
+      const entryPattern = entryId.replace(/\./g, '\\.');
+      const regex = new RegExp(`${entryPattern}=([^&]*)`);
+      const encodedValue = encodeURIComponent(trimmed);
+      const hasEntry = regex.test(url);
+
+      if (options?.append && hasEntry) {
+        const match = url.match(regex);
+        if (match) {
+          const existingValue = match[1];
+          const combined = existingValue ? `${existingValue}%0A${encodedValue}` : encodedValue;
+          return url.replace(regex, `${entryId}=${combined}`);
         }
-      } else {
-        updatedUrl += `${updatedUrl.includes('?') ? '&' : '?'}entry.1523910384=${encodedDetails}`;
       }
+
+      if (hasEntry) {
+        return url.replace(regex, `${entryId}=${encodedValue}`);
+      }
+
+      const separator = url.includes('?') ? '&' : '?';
+      return `${url}${separator}${entryId}=${encodedValue}`;
+    };
+
+    const publicationSelection = editFormData.currentPublication;
+    const publicationOtherForForm =
+      editFormData.currentPublication === 'Other' ? editFormData.currentPublicationOther : '';
+
+    const guestEntriesForForm = new Set<string>();
+    editFormData.guests.forEach((guest) => {
+      const trimmed = guest.trim();
+      if (trimmed) {
+        guestEntriesForForm.add(trimmed);
+      }
+    });
+    editFormData.additionalGuests
+      .split(',')
+      .map((guest) => guest.trim())
+      .filter(Boolean)
+      .forEach((guest) => guestEntriesForForm.add(guest));
+
+    const addOnEntriesForForm: string[] = [];
+    editFormData.addOns.forEach((item) => {
+      if (item !== 'Other' && item.trim()) {
+        addOnEntriesForForm.push(item.trim());
+      }
+    });
+    if (editFormData.addOns.includes('Other')) {
+      editFormData.addOnsOther
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .forEach((item) => addOnEntriesForForm.push(item));
     }
+
+    const addOnsForForm = Array.from(new Set(addOnEntriesForForm)).join(', ');
+
+    updatedUrl = applyEntryValue(updatedUrl, FORM_ENTRY_IDS.name, editFormData.name);
+    updatedUrl = applyEntryValue(updatedUrl, FORM_ENTRY_IDS.address, editFormData.address);
+    updatedUrl = applyEntryValue(updatedUrl, FORM_ENTRY_IDS.contact, editFormData.contact);
+    updatedUrl = applyEntryValue(updatedUrl, FORM_ENTRY_IDS.whatsapp, editFormData.whatsapp);
+    updatedUrl = applyEntryValue(updatedUrl, FORM_ENTRY_IDS.category, selectedCategory || editFormData.category);
+    updatedUrl = applyEntryValue(updatedUrl, FORM_ENTRY_IDS.pulseCode, editFormData.pulseCode);
+    updatedUrl = applyEntryValue(updatedUrl, FORM_ENTRY_IDS.status, editFormData.status);
+    updatedUrl = applyEntryValue(updatedUrl, FORM_ENTRY_IDS.currentPublication, publicationSelection);
+    updatedUrl = applyEntryValue(updatedUrl, FORM_ENTRY_IDS.currentPublicationOther, publicationOtherForForm);
+    updatedUrl = applyEntryValue(updatedUrl, FORM_ENTRY_IDS.currentStatus, editFormData.currentStatus);
+    updatedUrl = applyEntryValue(
+      updatedUrl,
+      FORM_ENTRY_IDS.currentStatusDetails,
+      editFormData.currentStatusDetails,
+      { append: true }
+    );
+    updatedUrl = applyEntryValue(updatedUrl, FORM_ENTRY_IDS.assignee, editFormData.assignee);
+    updatedUrl = applyEntryValue(updatedUrl, FORM_ENTRY_IDS.guests, Array.from(guestEntriesForForm).join(', '));
+    updatedUrl = applyEntryValue(updatedUrl, FORM_ENTRY_IDS.additionalGuests, editFormData.additionalGuests);
+    updatedUrl = applyEntryValue(updatedUrl, FORM_ENTRY_IDS.addOns, addOnsForForm);
+    updatedUrl = applyEntryValue(updatedUrl, FORM_ENTRY_IDS.addOnsOther, editFormData.addOnsOther);
 
     try {
       Linking.openURL(updatedUrl);
@@ -603,7 +750,7 @@ const MapsScreen: React.FC = () => {
       console.error('Error opening edit form:', error);
       Alert.alert('Error', 'Unable to open the edit form link.');
     }
-  }, [editFormData.currentStatusDetails, formURL, selectedCategory]);
+  }, [editFormData, formURL, selectedCategory]);
 
   const submitMeeting = async () => {
     if (!meetingData.title || !meetingData.scheduledTime) {
@@ -778,6 +925,12 @@ const MapsScreen: React.FC = () => {
         onSubmit={handleSaveEdit}
         organizationName={selectedOrg?.name}
         categoryOptions={categoryOptions}
+        currentPublicationOptions={CURRENT_PUBLICATION_OPTIONS}
+        currentStatusOptions={CURRENT_STATUS_OPTIONS}
+        currentStatusDetailOptions={CURRENT_STATUS_DETAIL_OPTIONS}
+        whatsappOptions={WHATSAPP_OPTIONS}
+        guestOptions={GUEST_OPTIONS}
+        addOnOptions={ADD_ON_OPTIONS}
         onOpenExternalForm={formURL ? handleOpenFormWithParams : undefined}
         previousSchools={previousSchoolsValue}
       />
