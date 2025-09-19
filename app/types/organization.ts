@@ -20,6 +20,7 @@ export interface Organization {
   decisionMakerName?: string;
   phoneDM?: string;
   ho?: string;
+  currentStatus?:string;
   currentStatusDetails?: string;
   demo?: string;
   assignee?: string;

@@ -8,7 +8,7 @@ interface org {
   id: string;
   name: string;
   category: string;
-  status?: string;
+  currentStatus?: string;
   city: string;
   state: string;
 }
@@ -41,7 +41,7 @@ const Filter: React.FC<FilterProps> = ({ allMarkers, setFilteredMarkers }) => {
     const unique = Array.from(
       new Set(
         allMarkers
-          .map((marker) => marker.status?.trim())
+          .map((marker) => marker.currentStatus?.trim())
           .filter((value): value is string => Boolean(value && value.length))
       )
     );
@@ -59,7 +59,7 @@ const Filter: React.FC<FilterProps> = ({ allMarkers, setFilteredMarkers }) => {
 
     if (selectedStatus !== 'all') {
       updatedMarkers = updatedMarkers.filter((marker) =>
-        marker.status?.trim().toLowerCase() === selectedStatus.trim().toLowerCase()
+        marker.currentStatus?.trim().toLowerCase() === selectedStatus.trim().toLowerCase()
       );
     }
 
@@ -122,7 +122,7 @@ const Filter: React.FC<FilterProps> = ({ allMarkers, setFilteredMarkers }) => {
             ))}
           </Picker>
 
-          <Text style={[styles.filterLabel, styles.filterLabelSpacing]}>Status</Text>
+          <Text style={[styles.filterLabel, styles.filterLabelSpacing]}>currentStatus</Text>
           <Picker
             selectedValue={selectedStatus}
             onValueChange={(value: string) => setSelectedStatus(value)}
@@ -133,8 +133,8 @@ const Filter: React.FC<FilterProps> = ({ allMarkers, setFilteredMarkers }) => {
             mode="dropdown"
           >
             <Picker.Item label="All Status" value="all" />
-            {statuses.map((status) => (
-              <Picker.Item key={status} label={status} value={status} />
+            {statuses.map((currentStatus) => (
+              <Picker.Item key={currentStatus} label={currentStatus} value={currentStatus} />
             ))}
           </Picker>
 

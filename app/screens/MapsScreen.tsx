@@ -184,6 +184,7 @@ const MapsScreen: React.FC = () => {
           decisionMakerName: item['Decision Maker Name'] || '',
           phoneDM: item['Phone (DM)'] || '',
           ho: item.HO || '',
+          currentStatus: item['Current Status'] || '',
           currentStatusDetails: item['Current Status Details'] || '',
           demo: item.Demo || '',
           assignee: item.Asignee || '',
@@ -383,8 +384,6 @@ const MapsScreen: React.FC = () => {
 
   // Handle filter updates from Filter component
   const handleFilterUpdate = (nextMarkers: Organization[]) => {
-    console.log('Filter updated, received markers:', nextMarkers.length);
-
     if (organizations.length === 0) {
       setFilterMarkers(nextMarkers);
       return;
