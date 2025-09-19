@@ -3,7 +3,6 @@ import {
   View,
   Text,
   TouchableOpacity,
-  Modal,
   TextInput,
   Alert,
   ScrollView,
@@ -24,15 +23,10 @@ import { getMarkerColor } from '../components/category';
 import Filter from '../components/filter';
 import { Marker, Region } from 'react-native-maps';
 import ClusteredMarkers from '../components/ClusteredMarkers';
+import OrganizationDetailsModal from '../components/maps/OrganizationDetailsModal';
+import EditOrganizationModal, { EditFormState } from '../components/maps/EditOrganizationModal';
+import MeetingRequestModal, { MeetingFormState } from '../components/maps/MeetingRequestModal';
 import type { Organization } from '../types/organization';
-
-type EditFormState = {
-  name: string;
-  address: string;
-  status: string;
-  currentStatusDetails: string;
-  assignee: string;
-};
 
 const INITIAL_EDIT_FORM: EditFormState = {
   name: '',
@@ -40,6 +34,12 @@ const INITIAL_EDIT_FORM: EditFormState = {
   status: '',
   currentStatusDetails: '',
   assignee: '',
+};
+
+const INITIAL_MEETING_FORM: MeetingFormState = {
+  title: '',
+  description: '',
+  scheduledTime: '',
 };
 
 const LIVE_TRACKING_COLORS = [
@@ -75,11 +75,7 @@ const MapsScreen: React.FC = () => {
     cities: string[];
     areas: string[];
   } | null>(null);
-  const [meetingData, setMeetingData] = useState({
-    title: '',
-    description: '',
-    scheduledTime: '',
-  });
+  const [meetingData, setMeetingData] = useState<MeetingFormState>(INITIAL_MEETING_FORM);
   const [editFormData, setEditFormData] = useState<EditFormState>(INITIAL_EDIT_FORM);
 
   const handlePhonePress = useCallback((phone?: string) => {
@@ -126,16 +122,6 @@ const MapsScreen: React.FC = () => {
     setSelectedOrg(organization);
     setShowDetails(true);
   }, []);
-
-  const renderDetailRow = useCallback(
-    (iconName: string, content: string) => (
-      <View style={styles.detailRow}>
-        <Icon name={iconName} size={20} color={theme.colors.primary} />
-        <Text style={[styles.detailText, { color: theme.colors.text }]}>{content}</Text>
-      </View>
-    ),
-    [theme.colors.primary, theme.colors.text],
-  );
 
   const locationText = useMemo(() => {
     if (!selectedOrg) {
@@ -404,6 +390,10 @@ const MapsScreen: React.FC = () => {
     setEditFormData((prev) => ({ ...prev, [field]: value }));
   }, []);
 
+  const handleMeetingInputChange = useCallback((field: keyof MeetingFormState, value: string) => {
+    setMeetingData((prev) => ({ ...prev, [field]: value }));
+  }, []);
+
   const handleCancelEdit = useCallback(() => {
     setShowEditForm(false);
     setEditFormData(INITIAL_EDIT_FORM);
@@ -495,7 +485,7 @@ const MapsScreen: React.FC = () => {
       });
       Alert.alert('Success', 'Meeting request submitted for approval');
       setShowMeetingForm(false);
-      setMeetingData({ title: '', description: '', scheduledTime: '' });
+      setMeetingData(INITIAL_MEETING_FORM);
     } catch (error) {
       console.error('Error creating meeting:', error);
       Alert.alert('Error', 'Failed to create meeting');
@@ -740,376 +730,38 @@ const MapsScreen: React.FC = () => {
         )}
       </View>
 
-      {/* Organization Details Modal */}
-      <Modal
+      <OrganizationDetailsModal
         visible={showDetails && !!selectedOrg}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setShowDetails(false)}
-      >
-        <View style={{ flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'flex-end' }}>
-          <View style={{ borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '80%', backgroundColor: theme.colors.surface }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#e0e0e0' }}>
-              <Text style={{ fontSize: 20, fontWeight: 'bold', color: theme.colors.text }}>
-                {selectedOrg?.name}
-              </Text>
-              <TouchableOpacity onPress={() => setShowDetails(false)}>
-                <Icon name="close" size={24} color={theme.colors.text} />
-              </TouchableOpacity>
-            </View>
+        organization={selectedOrg}
+        colors={theme.colors}
+        locationText={locationText}
+        onClose={() => setShowDetails(false)}
+        onEdit={handleEditOrganization}
+        onDirections={handleOpenDirections}
+        onScheduleMeeting={handleScheduleMeeting}
+        onPressPhone={handlePhonePress}
+        onPressWhatsApp={handleWhatsAppPress}
+        onPressWebsite={handleWebsitePress}
+      />
 
-            <ScrollView style={{ padding: 20 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-                <Icon name="business" size={20} color={theme.colors.primary} />
-                <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
-                  {selectedOrg?.category}
-                </Text>
-              </View>
-
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-                <Icon name="location-city" size={20} color={theme.colors.primary} />
-                <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
-                  {selectedOrg?.city}, {selectedOrg?.state}
-                </Text>
-              </View>
-
-              {selectedOrg?.contact && (
-                <TouchableOpacity
-                  style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}
-                  onPress={() => handlePhonePress(selectedOrg.contact)}
-                  activeOpacity={0.7}
-                >
-                  <Icon name="phone" size={20} color={theme.colors.primary} />
-                  <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
-                    {selectedOrg.contact}
-                  </Text>
-                </TouchableOpacity>
-              )}
-
-              {selectedOrg?.description && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-                  <Icon name="info" size={20} color={theme.colors.primary} />
-                  <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
-                    {selectedOrg.description}
-                  </Text>
-                </View>
-              )}
-
-              {selectedOrg?.type && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-                  <Icon name="category" size={20} color={theme.colors.primary} />
-                  <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
-                    Type: {selectedOrg.type}
-                  </Text>
-                </View>
-              )}
-
-              {selectedOrg?.ratings && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-                  <Icon name="star" size={20} color={theme.colors.primary} />
-                  <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
-                    Ratings: {selectedOrg.ratings}
-                  </Text>
-                </View>
-              )}
-
-              {selectedOrg?.website && (
-                <TouchableOpacity
-                  style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}
-                  onPress={() => handleWebsitePress(selectedOrg.website)}
-                  activeOpacity={0.7}
-                >
-                  <Icon name="web" size={20} color={theme.colors.primary} />
-                  <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
-                    Website: {selectedOrg.website}
-                  </Text>
-                </TouchableOpacity>
-              )}
-
-              {selectedOrg?.numberOfStudents && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-                  <Icon name="school" size={20} color={theme.colors.primary} />
-                  <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
-                    Students: {selectedOrg.numberOfStudents}
-                  </Text>
-                </View>
-              )}
-
-              {selectedOrg?.decisionMakerName && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-                  <Icon name="person" size={20} color={theme.colors.primary} />
-                  <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
-                    Decision Maker: {selectedOrg.decisionMakerName}
-                  </Text>
-                </View>
-              )}
-
-              {selectedOrg?.phoneDM && (
-                <TouchableOpacity
-                  style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}
-                  onPress={() => handlePhonePress(selectedOrg.phoneDM)}
-                  activeOpacity={0.7}
-                >
-                  <Icon name="phone" size={20} color={theme.colors.primary} />
-                  <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
-                    DM Phone: {selectedOrg.phoneDM}
-                  </Text>
-                </TouchableOpacity>
-              )}
-
-              {selectedOrg?.whatsapp && (
-                <TouchableOpacity
-                  style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}
-                  onPress={() => handleWhatsAppPress(selectedOrg.whatsapp)}
-                  activeOpacity={0.7}
-                >
-                  <Icon name="chat" size={20} color={theme.colors.primary} />
-                  <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
-                    WhatsApp: {selectedOrg.whatsapp}
-                  </Text>
-                </TouchableOpacity>
-              )}
-
-              {selectedOrg?.eventTitle && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-                  <Icon name="event" size={20} color={theme.colors.primary} />
-                  <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
-                    Event: {selectedOrg.eventTitle}
-                  </Text>
-                </View>
-              )}
-
-              {selectedOrg?.startDate && selectedOrg?.startTime && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-                  <Icon name="schedule" size={20} color={theme.colors.primary} />
-                  <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
-                    Start: {selectedOrg.startDate} at {selectedOrg.startTime}
-                  </Text>
-                </View>
-            <ScrollView style={styles.modalBody}>
-              {selectedOrg && (
-                <>
-                  {renderDetailRow('business', selectedOrg.category)}
-                  {renderDetailRow('location-city', locationText || `${selectedOrg.city}, ${selectedOrg.state}`)}
-                  {selectedOrg.contact?.trim() ? renderDetailRow('phone', selectedOrg.contact) : null}
-                  {selectedOrg.description?.trim() ? renderDetailRow('info', selectedOrg.description) : null}
-                  {selectedOrg.type?.trim() ? renderDetailRow('category', `Type: ${selectedOrg.type}`) : null}
-                  {selectedOrg.ratings?.trim() ? renderDetailRow('star', `Ratings: ${selectedOrg.ratings}`) : null}
-                  {selectedOrg.website?.trim() ? renderDetailRow('web', `Website: ${selectedOrg.website}`) : null}
-                  {selectedOrg.numberOfStudents?.trim()
-                    ? renderDetailRow('school', `Students: ${selectedOrg.numberOfStudents}`)
-                    : null}
-                  {selectedOrg.decisionMakerName?.trim()
-                    ? renderDetailRow('person', `Decision Maker: ${selectedOrg.decisionMakerName}`)
-                    : null}
-                  {selectedOrg.phoneDM?.trim() ? renderDetailRow('phone', `DM Phone: ${selectedOrg.phoneDM}`) : null}
-                  {selectedOrg.whatsapp?.trim() ? renderDetailRow('chat', `WhatsApp: ${selectedOrg.whatsapp}`) : null}
-                  {selectedOrg.currentStatus?.trim()
-                    ? renderDetailRow('update', `Current Status: ${selectedOrg.currentStatus}`)
-                    : null}
-                  {selectedOrg.currentStatusDetails?.trim()
-                    ? renderDetailRow('description', `Status Details: ${selectedOrg.currentStatusDetails}`)
-                    : null}
-                  {selectedOrg.beforeSchool?.trim()
-                    ? renderDetailRow('watch-later', `Before School: ${selectedOrg.beforeSchool}`)
-                    : null}
-                  {selectedOrg.afterSchool?.trim()
-                    ? renderDetailRow('event-available', `After School: ${selectedOrg.afterSchool}`)
-                    : null}
-                  {selectedOrg.addOns?.trim() ? renderDetailRow('extension', `Add-ons: ${selectedOrg.addOns}`) : null}
-                  {selectedOrg.eventTitle?.trim()
-                    ? renderDetailRow('event', `Event: ${selectedOrg.eventTitle}`)
-                    : null}
-                  {selectedOrg.startDate?.trim() && selectedOrg.startTime?.trim()
-                    ? renderDetailRow('schedule', `Start: ${selectedOrg.startDate} at ${selectedOrg.startTime}`)
-                    : null}
-                </>
-              )}
-            </ScrollView>
-
-            <View style={styles.modalFooter}>
-              <View style={styles.footerButtonRow}>
-                <TouchableOpacity
-                  style={[
-                    styles.actionButton,
-                    styles.footerButton,
-                    { backgroundColor: theme.colors.warning, marginRight: 12 },
-                  ]}
-                  onPress={handleEditOrganization}
-                >
-                  <Icon name="edit" size={20} color="#fff" />
-                  <Text style={styles.actionButtonText}>Edit</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.actionButton,
-                    styles.footerButton,
-                    { backgroundColor: theme.colors.success, marginRight: 12 },
-                  ]}
-                  onPress={handleOpenDirections}
-                >
-                  <Icon name="directions" size={20} color="#fff" />
-                  <Text style={styles.actionButtonText}>Directions</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[
-                    styles.actionButton,
-                    styles.footerButton,
-                    { backgroundColor: theme.colors.primary },
-                  ]}
-                  onPress={handleScheduleMeeting}
-                >
-                  <Icon name="event" size={20} color="#fff" />
-                  <Text style={styles.actionButtonText}>Schedule Meeting</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Edit Organization Modal */}
-      <Modal
+      <EditOrganizationModal
         visible={showEditForm}
-        animationType="slide"
-        transparent
-        onRequestClose={handleCancelEdit}
-      >
-        <View style={{ flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'flex-end' }}>
-          <View style={{ borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '85%', backgroundColor: theme.colors.surface }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#e0e0e0' }}>
-              <Text style={{ fontSize: 20, fontWeight: 'bold', color: theme.colors.text }}>
-                Edit Organization
-              </Text>
-              <TouchableOpacity onPress={handleCancelEdit}>
-                <Icon name="close" size={24} color={theme.colors.text} />
-              </TouchableOpacity>
-            </View>
+        colors={theme.colors}
+        formData={editFormData}
+        onChange={handleEditInputChange}
+        onClose={handleCancelEdit}
+        onSubmit={handleSaveEdit}
+        organizationName={selectedOrg?.name}
+      />
 
-            <ScrollView style={{ padding: 20 }}>
-              <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 8, color: theme.colors.text }}>Name</Text>
-              <TextInput
-                style={{ borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, borderColor: theme.colors.border, color: theme.colors.text }}
-                value={editFormData.name}
-                onChangeText={(text) => handleEditInputChange('name', text)}
-                placeholder="Organization name"
-                placeholderTextColor={theme.colors.secondary}
-              />
-
-              <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 8, marginTop: 16, color: theme.colors.text }}>Address</Text>
-              <TextInput
-                style={{ borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, borderColor: theme.colors.border, color: theme.colors.text }}
-                value={editFormData.address}
-                onChangeText={(text) => handleEditInputChange('address', text)}
-                placeholder="Organization address"
-                placeholderTextColor={theme.colors.secondary}
-              />
-
-              <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 8, marginTop: 16, color: theme.colors.text }}>Status</Text>
-              <TextInput
-                style={{ borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, borderColor: theme.colors.border, color: theme.colors.text }}
-                value={editFormData.status}
-                onChangeText={(text) => handleEditInputChange('status', text)}
-                placeholder="Current status"
-                placeholderTextColor={theme.colors.secondary}
-              />
-
-              <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 8, marginTop: 16, color: theme.colors.text }}>Status Details</Text>
-              <TextInput
-                style={{ borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, height: 100, textAlignVertical: 'top', borderColor: theme.colors.border, color: theme.colors.text }}
-                value={editFormData.currentStatusDetails}
-                onChangeText={(text) => handleEditInputChange('currentStatusDetails', text)}
-                placeholder="Additional details"
-                placeholderTextColor={theme.colors.secondary}
-                multiline
-              />
-
-              <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 8, marginTop: 16, color: theme.colors.text }}>Assignee</Text>
-              <TextInput
-                style={{ borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, borderColor: theme.colors.border, color: theme.colors.text }}
-                value={editFormData.assignee}
-                onChangeText={(text) => handleEditInputChange('assignee', text)}
-                placeholder="Assigned to"
-                placeholderTextColor={theme.colors.secondary}
-              />
-            </ScrollView>
-
-            <View style={{ padding: 20, borderTopWidth: 1, borderTopColor: '#e0e0e0' }}>
-              <TouchableOpacity
-                style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 8, backgroundColor: theme.colors.primary }}
-                onPress={handleSaveEdit}
-              >
-                <Icon name="save" size={20} color="#fff" />
-                <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600', marginLeft: 8 }}>Save Changes</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Meeting Modal */}
-      <Modal
+      <MeetingRequestModal
         visible={showMeetingForm}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setShowMeetingForm(false)}
-      >
-        <View style={{ flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'flex-end' }}>
-          <View style={{ borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '80%', backgroundColor: theme.colors.surface }}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#e0e0e0' }}>
-              <Text style={{ fontSize: 20, fontWeight: 'bold', color: theme.colors.text }}>
-                Schedule Meeting
-              </Text>
-              <TouchableOpacity onPress={() => setShowMeetingForm(false)}>
-                <Icon name="close" size={24} color={theme.colors.text} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={{ padding: 20 }}>
-              <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 8, marginTop: 16, color: theme.colors.text }}>Meeting Title *</Text>
-              <TextInput
-                style={{ borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, borderColor: theme.colors.border, color: theme.colors.text }}
-                value={meetingData.title}
-                onChangeText={(text) => setMeetingData({ ...meetingData, title: text })}
-                placeholder="Enter meeting title"
-                placeholderTextColor={theme.colors.secondary}
-              />
-
-              <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 8, marginTop: 16, color: theme.colors.text }}>Description</Text>
-              <TextInput
-                style={{ borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, height: 80, textAlignVertical: 'top', borderColor: theme.colors.border, color: theme.colors.text }}
-                value={meetingData.description}
-                onChangeText={(text) => setMeetingData({ ...meetingData, description: text })}
-                placeholder="Enter meeting description"
-                placeholderTextColor={theme.colors.secondary}
-                multiline
-                numberOfLines={3}
-              />
-
-              <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 8, marginTop: 16, color: theme.colors.text }}>Scheduled Time *</Text>
-              <TextInput
-                style={{ borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, borderColor: theme.colors.border, color: theme.colors.text }}
-                value={meetingData.scheduledTime}
-                onChangeText={(text) => setMeetingData({ ...meetingData, scheduledTime: text })}
-                placeholder="YYYY-MM-DD HH:MM"
-                placeholderTextColor={theme.colors.secondary}
-              />
-            </ScrollView>
-
-            <View style={{ padding: 20, borderTopWidth: 1, borderTopColor: '#e0e0e0' }}>
-              <TouchableOpacity
-                style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, paddingHorizontal: 24, borderRadius: 8, backgroundColor: theme.colors.success }}
-                onPress={submitMeeting}
-              >
-                <Icon name="send" size={20} color="#fff" />
-                <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600', marginLeft: 8 }}>Submit Request</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+        colors={theme.colors}
+        formData={meetingData}
+        onChange={handleMeetingInputChange}
+        onSubmit={submitMeeting}
+        onClose={() => setShowMeetingForm(false)}
+      />
     </SafeAreaView>
   );
 };
@@ -1222,84 +874,6 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: '80%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  modalBody: {
-    padding: 20,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  detailText: {
-    marginLeft: 12,
-    fontSize: 16,
-    flex: 1,
-  },
-  modalFooter: {
-    padding: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
-  },
-  footerButtonRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  footerButton: {
-    flex: 1,
-  },
-  modalActions: {
-    padding: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
-  },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-  },
-  actionButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-    marginLeft: 8,
-  },
-  inputLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 8,
-    marginTop: 16,
-  },
-  textInput: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
-  },
-  textArea: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
-    height: 80,
-    textAlignVertical: 'top',
   },
   noAssignmentContainer: {
     flexDirection: 'row',
