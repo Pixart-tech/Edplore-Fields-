@@ -4,7 +4,7 @@ import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { Picker } from '@react-native-picker/picker';
 import { moderateScale } from 'react-native-size-matters';
 
-interface MarkerData {
+interface org {
   id: string;
   name: string;
   category: string;
@@ -14,8 +14,8 @@ interface MarkerData {
 }
 
 type FilterProps = {
-  allMarkers: MarkerData[];
-  setFilteredMarkers: (markers: MarkerData[]) => void;
+  allMarkers: org[];
+  setFilteredMarkers: (markers: org[]) => void;
 };
 
 const Filter: React.FC<FilterProps> = ({ allMarkers, setFilteredMarkers }) => {
