@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -79,6 +79,56 @@ const LIVE_TRACKING_COLORS = [
   '#00796B',
 ];
 
+interface OrganizationMarkerProps {
+  org: Organization;
+  onPress: (organization: Organization) => void;
+}
+
+const OrganizationMarker = React.memo(({ org, onPress }: OrganizationMarkerProps) => {
+  const [tracksViewChanges, setTracksViewChanges] = useState(true);
+
+  const markerColor = getMarkerColor(org.status, org.category);
+  const { label, shapeStyle } = getMarkerLabel(org.category);
+
+  const handleLayout = useCallback(() => {
+    if (tracksViewChanges) {
+      setTracksViewChanges(false);
+    }
+  }, [tracksViewChanges]);
+
+  const handlePress = useCallback(() => {
+    onPress(org);
+  }, [onPress, org]);
+
+  return (
+    <Marker
+      coordinate={{
+        latitude: org.latitude,
+        longitude: org.longitude,
+      }}
+      onPress={handlePress}
+      title={org.name}
+      description={org.category}
+      tracksViewChanges={tracksViewChanges}
+    >
+      <View
+        style={[
+          styles.customMarker,
+          { backgroundColor: markerColor },
+          shapeStyle,
+        ]}
+        onLayout={handleLayout}
+      >
+        <Text style={styles.customMarkerLabel}>
+          {label}
+        </Text>
+      </View>
+    </Marker>
+  );
+});
+
+OrganizationMarker.displayName = 'OrganizationMarker';
+
 const MapsScreen: React.FC = () => {
   const { user } = useAuth();
   const { currentLocation, liveUsers, getLiveTrackingUsers } = useLocation();
@@ -101,6 +151,11 @@ const MapsScreen: React.FC = () => {
     description: '',
     scheduledTime: '',
   });
+
+  const handleOrganizationPress = useCallback((organization: Organization) => {
+    setSelectedOrg(organization);
+    setShowDetails(true);
+  }, []);
 
   useEffect(() => {
     if (user?.role === 'admin') {
@@ -550,38 +605,13 @@ const MapsScreen: React.FC = () => {
             provider={PROVIDER_GOOGLE}
             initialRegion={getMapRegion()}
           >
-            {filteredOrganizations.map((org) => {
-              const markerColor = getMarkerColor(org.status, org.category);
-              const { label, shapeStyle } = getMarkerLabel(org.category);
-
-              return (
-                <Marker
-                  key={`${org.id}-${org.latitude}-${org.longitude}`}
-                  coordinate={{
-                    latitude: org.latitude,
-                    longitude: org.longitude,
-                  }}
-                  onPress={() => {
-                    setSelectedOrg(org);
-                    setShowDetails(true);
-                  }}
-                  title={org.name}
-                  description={org.category}
-                >
-                  <View
-                    style={[
-                      styles.customMarker,
-                      { backgroundColor: markerColor },
-                      shapeStyle,
-                    ]}
-                  >
-                    <Text style={styles.customMarkerLabel}>
-                      {label}
-                    </Text>
-                  </View>
-                </Marker>
-              );
-            })}
+            {filteredOrganizations.map((org) => (
+              <OrganizationMarker
+                key={`${org.id}-${org.latitude}-${org.longitude}`}
+                org={org}
+                onPress={handleOrganizationPress}
+              />
+            ))}
 
             {user?.role === 'admin' && liveUsers.map((liveUser, index) => {
               const colorKey = liveUser.userId || liveUser.name || `user-${index}`;
