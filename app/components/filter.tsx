@@ -92,7 +92,7 @@ const Filter: React.FC<FilterProps> = ({ allMarkers, setFilteredMarkers }) => {
   const filtersActive = activeFiltersCount > 0;
 
   return (
-    <View>
+    <View style={styles.overlayContainer} pointerEvents="box-none">
       <TouchableOpacity
         style={styles.filterButton}
         onPress={() => setFiltersVisible((visible) => !visible)}
@@ -164,6 +164,10 @@ const Filter: React.FC<FilterProps> = ({ allMarkers, setFilteredMarkers }) => {
 };
 
 const styles = StyleSheet.create({
+  overlayContainer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1,
+  },
   filterButton: {
     position: 'absolute',
     top: moderateScale(20),
