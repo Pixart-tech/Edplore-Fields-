@@ -9,6 +9,7 @@ import {
   ScrollView,
   ActivityIndicator,
   StyleSheet,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { db } from '../../src/firebase';
@@ -62,6 +63,46 @@ const MapsScreen: React.FC = () => {
     description: '',
     scheduledTime: '',
   });
+
+  const handlePhonePress = useCallback((phone?: string) => {
+    if (!phone) {
+      return;
+    }
+
+    const normalized = phone.replace(/[\s()-]/g, '').trim();
+    if (!normalized || !/\d/.test(normalized)) {
+      return;
+    }
+
+    Linking.openURL(`tel:${normalized}`);
+  }, []);
+
+  const handleWhatsAppPress = useCallback((whatsapp?: string) => {
+    if (!whatsapp) {
+      return;
+    }
+
+    const digitsOnly = whatsapp.replace(/\D/g, '');
+    if (!digitsOnly) {
+      return;
+    }
+
+    Linking.openURL(`https://wa.me/${digitsOnly}`);
+  }, []);
+
+  const handleWebsitePress = useCallback((website?: string) => {
+    if (!website) {
+      return;
+    }
+
+    const trimmed = website.trim();
+    if (!trimmed) {
+      return;
+    }
+
+    const url = trimmed.startsWith('http://') || trimmed.startsWith('https://') ? trimmed : `https://${trimmed}`;
+    Linking.openURL(url);
+  }, []);
 
   const handleOrganizationPress = useCallback((organization: Organization) => {
     setSelectedOrg(organization);
@@ -597,12 +638,16 @@ const MapsScreen: React.FC = () => {
               </View>
 
               {selectedOrg?.contact && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}
+                  onPress={() => handlePhonePress(selectedOrg.contact)}
+                  activeOpacity={0.7}
+                >
                   <Icon name="phone" size={20} color={theme.colors.primary} />
                   <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
                     {selectedOrg.contact}
                   </Text>
-                </View>
+                </TouchableOpacity>
               )}
 
               {selectedOrg?.description && (
@@ -633,12 +678,16 @@ const MapsScreen: React.FC = () => {
               )}
 
               {selectedOrg?.website && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}
+                  onPress={() => handleWebsitePress(selectedOrg.website)}
+                  activeOpacity={0.7}
+                >
                   <Icon name="web" size={20} color={theme.colors.primary} />
                   <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
                     Website: {selectedOrg.website}
                   </Text>
-                </View>
+                </TouchableOpacity>
               )}
 
               {selectedOrg?.numberOfStudents && (
@@ -660,21 +709,29 @@ const MapsScreen: React.FC = () => {
               )}
 
               {selectedOrg?.phoneDM && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}
+                  onPress={() => handlePhonePress(selectedOrg.phoneDM)}
+                  activeOpacity={0.7}
+                >
                   <Icon name="phone" size={20} color={theme.colors.primary} />
                   <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
                     DM Phone: {selectedOrg.phoneDM}
                   </Text>
-                </View>
+                </TouchableOpacity>
               )}
 
               {selectedOrg?.whatsapp && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}
+                  onPress={() => handleWhatsAppPress(selectedOrg.whatsapp)}
+                  activeOpacity={0.7}
+                >
                   <Icon name="chat" size={20} color={theme.colors.primary} />
                   <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
                     WhatsApp: {selectedOrg.whatsapp}
                   </Text>
-                </View>
+                </TouchableOpacity>
               )}
 
               {selectedOrg?.eventTitle && (
