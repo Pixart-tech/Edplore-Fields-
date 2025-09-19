@@ -157,12 +157,6 @@ const HomeScreen: React.FC = () => {
           icon: 'event',
           color: theme.colors.success,
         },
-        {
-          title: 'Organizations',
-          value: '5,000+',
-          icon: 'business',
-          color: theme.colors.secondary,
-        },
       ];
     } else {
       return [
