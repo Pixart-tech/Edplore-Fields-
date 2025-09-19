@@ -1,33 +1,25 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import RNMapView, { Marker as RNMarker, PROVIDER_GOOGLE } from 'react-native-maps';
+import { StyleSheet } from 'react-native';
+import RNMapView, {
+  Marker as RNMarker,
+  PROVIDER_GOOGLE,
+  type MapViewProps as RNMapViewProps,
+  type MarkerProps as RNMarkerProps,
+} from 'react-native-maps';
 
-interface MapComponentProps {
-  style?: any;
-  provider?: any;
-  initialRegion?: {
-    latitude: number;
-    longitude: number;
-    latitudeDelta: number;
-    longitudeDelta: number;
-  };
-  children?: React.ReactNode;
-}
-
-interface MarkerProps {
-  coordinate: {
-    latitude: number;
-    longitude: number;
-  };
-  title?: string;
-  description?: string;
-  pinColor?: string;
-  onPress?: () => void;
-}
+type MapComponentProps = RNMapViewProps;
+type SimpleMarkerProps = RNMarkerProps;
 
 // Simple MapView using react-native-maps
-export const MapView: React.FC<MapComponentProps> = ({ style, initialRegion, children }) => {
-
+export const MapView: React.FC<MapComponentProps> = ({
+  style,
+  provider = PROVIDER_GOOGLE,
+  initialRegion,
+  showsUserLocation = true,
+  showsMyLocationButton = true,
+  children,
+  ...rest
+}) => {
   const defaultRegion = {
     latitude: 12.9716,
     longitude: 77.5946,
@@ -38,25 +30,22 @@ export const MapView: React.FC<MapComponentProps> = ({ style, initialRegion, chi
   return (
     <RNMapView
       style={[styles.map, style]}
-      provider={PROVIDER_GOOGLE}
+      provider={provider}
       initialRegion={initialRegion || defaultRegion}
-      showsUserLocation={true}
-      showsMyLocationButton={true}
+      showsUserLocation={showsUserLocation}
+      showsMyLocationButton={showsMyLocationButton}
+      {...rest}
     >
       {children}
     </RNMapView>
   );
 };
 
-export const Marker: React.FC<MarkerProps> = ({ coordinate, title, description, pinColor, onPress }) => {  
+export const Marker: React.FC<SimpleMarkerProps> = ({ children, ...markerProps }) => {
   return (
-    <RNMarker
-      coordinate={coordinate}
-      title={title}
-      description={description}
-      pinColor={pinColor || 'red'}
-      onPress={onPress}
-    />
+    <RNMarker {...markerProps}>
+      {children}
+    </RNMarker>
   );
 };
 
