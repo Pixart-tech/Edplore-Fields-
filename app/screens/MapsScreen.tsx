@@ -410,11 +410,11 @@ const MapsScreen: React.FC = () => {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
       {/* Search Bar */}
-      <View style={{ paddingHorizontal: 16, paddingVertical: 8 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, borderRadius: 8, backgroundColor: theme.colors.surface }}>
+      <View style={styles.searchContainer}>
+        <View style={[styles.searchBar, { backgroundColor: theme.colors.surface }]}>
           <Icon name="search" size={20} color={theme.colors.secondary} />
           <TextInput
-            style={{ flex: 1, marginLeft: 8, fontSize: 16, color: theme.colors.text }}
+            style={[styles.searchInput, { color: theme.colors.text }]}
             placeholder="Search organizations, cities, categories..."
             placeholderTextColor={theme.colors.secondary}
             value={searchQuery}
@@ -846,13 +846,13 @@ const styles = StyleSheet.create({
   },
   searchContainer: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 6,
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 8,
     borderRadius: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
