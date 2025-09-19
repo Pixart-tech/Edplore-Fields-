@@ -10,6 +10,7 @@ import {
   Platform,
   ScrollView,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../src/context/AuthContext';
@@ -77,9 +78,13 @@ const LoginScreen: React.FC = () => {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.header}>
-            <Icon name="location-on" size={80} color={theme.colors.primary} />
+            <Image 
+              source={require('../../assets/images/icon.png')} // Update path to your logo
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
             <Text style={[styles.title, { color: theme.colors.text }]}>
-              Location Tracker
+              Edplore Fields
             </Text>
             <Text style={[styles.subtitle, { color: theme.colors.secondary }]}>
               Track, Meet, Manage
@@ -173,13 +178,6 @@ const LoginScreen: React.FC = () => {
               </Text>
             </TouchableOpacity>
 
-            {isLogin && (
-              <View style={styles.adminNote}>
-                <Text style={[styles.adminNoteText, { color: theme.colors.secondary }]}>
-                  Super Admin: admin@gmail.com / admin
-                </Text>
-              </View>
-            )}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -280,6 +278,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontStyle: 'italic',
   },
+  logoImage: {
+  width: 80,
+  height: 80,
+},
 });
 
 export default LoginScreen;

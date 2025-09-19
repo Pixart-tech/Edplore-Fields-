@@ -23,6 +23,7 @@ interface User {
   uid?: string;
   name: string;
   email: string;
+  role?: string;
   assignedCities?: string[];
   assignedAreas?: string[];
 }
@@ -53,8 +54,17 @@ const AdminAssignmentScreen: React.FC = () => {
   const [selectedAreas, setSelectedAreas] = useState<string[]>([]);
 
   useEffect(() => {
+    // Validate Firebase configuration
+    if (!db) {
+      console.error('Firestore database instance is not initialized');
+      Alert.alert('Error', 'Database connection not available. Please restart the app.');
+      return;
+    }
+    
+    console.log('Firebase db instance:', db);
     console.log('AdminAssignmentScreen: User role check:', user?.role);
     console.log('AdminAssignmentScreen: User data:', user);
+    
     if (user?.role === 'admin') {
       loadData();
     }
@@ -66,7 +76,16 @@ const AdminAssignmentScreen: React.FC = () => {
       // Load users from Firestore
       try {
         const usersSnap = await getDocs(collection(db, 'users'));
-        const usersData = usersSnap.docs.map(d => d.data() as any);
+        const usersData = usersSnap.docs.map(d => {
+          const data = d.data();
+          return {
+            ...data,
+            id: d.id,
+            // Ensure arrays are properly initialized
+            assignedCities: Array.isArray(data.assignedCities) ? data.assignedCities : [],
+            assignedAreas: Array.isArray(data.assignedAreas) ? data.assignedAreas : [],
+          } as User;
+        });
         setUsers(usersData);
         console.log(`AdminAssignmentScreen: Loaded ${usersData.length} users`);
         console.log('Users data:', usersData.map(u => ({ name: u.name, role: u.role, email: u.email })));
@@ -80,11 +99,26 @@ const AdminAssignmentScreen: React.FC = () => {
       const defaultCities = [
         { id: 'city_1', name: 'Bangalore' },
         { id: 'city_2', name: 'Chennai' },
-        { id: 'city_3', name: 'Gadag' },
-        { id: 'city_4', name: 'Mysuru' },
-        { id: 'city_5', name: 'AP' },
-        { id: 'city_6', name: 'Telangana' }
+        { id: 'city_3', name: 'Mysuru' },
+        { id: 'city_4', name: 'Tumkur' },
+        { id: 'city_5', name: 'Kanakapura' },
+        { id: 'city_6', name: 'Doddaballapura' },
+        { id: 'city_7', name: 'Hoskote' },
+        { id: 'city_8', name: 'Kolar' },
+        { id: 'city_9', name: 'Koppal' },
+        { id: 'city_10', name: 'Bidadi' },
+        { id: 'city_11', name: 'Ramanagar' },
+        { id: 'city_12', name: 'Kalaburagi' },
+        { id: 'city_13', name: 'Vijayapura' },
+        { id: 'city_14', name: 'Mandya' },
+        { id: 'city_15', name: 'Solapur' },
+        { id: 'city_16', name: 'Sandur' },
+        { id: 'city_17', name: 'Gadag' },
+        { id: 'city_18', name: 'Hubballi' },
+        { id: 'city_19', name: 'Udupi' },
+        { id: 'city_20', name: 'COIMBATORE' }
       ];
+
       setCities(defaultCities);
 
       const defaultAreas = [
@@ -112,18 +146,22 @@ const AdminAssignmentScreen: React.FC = () => {
           
           // Extract unique cities from organizations (as additional options)
           const uniqueCities = [...new Set(organizations.map((org: any) => org.city))];
-          const orgCities = uniqueCities.map((city, index) => ({
-            id: `org_city_${index}`,
-            name: city
-          }));
+          const orgCities = uniqueCities
+            .filter(city => city != null && city !== '')
+            .map((city, index) => ({
+              id: `org_city_${index}`,
+              name: String(city)
+            }));
           
           // Extract unique areas/categories from organizations (as additional options)
           const uniqueAreas = [...new Set(organizations.map((org: any) => org.category))];
-          const orgAreas = uniqueAreas.map((area, index) => ({
-            id: `org_area_${index}`,
-            name: area,
-            city: 'All'
-          }));
+          const orgAreas = uniqueAreas
+            .filter(area => area != null && area !== '')
+            .map((area, index) => ({
+              id: `org_area_${index}`,
+              name: String(area),
+              city: 'All'
+            }));
           
           // Combine default with organization data (avoiding duplicates)
           const allCities = [...defaultCities];
@@ -163,39 +201,69 @@ const AdminAssignmentScreen: React.FC = () => {
     
     setSelectedUser(userToAssign);
     
-    const cities = Array.isArray(userToAssign.assignedCities) ? userToAssign.assignedCities : [];
-    const areas = Array.isArray(userToAssign.assignedAreas) ? userToAssign.assignedAreas : [];
+    // More robust array initialization with validation
+    const cities = Array.isArray(userToAssign.assignedCities) 
+      ? userToAssign.assignedCities.filter(city => city != null && city !== '') 
+      : [];
+      
+    const areas = Array.isArray(userToAssign.assignedAreas) 
+      ? userToAssign.assignedAreas.filter(area => area != null && area !== '') 
+      : [];
     
     console.log('Setting selectedCities to:', cities);
     console.log('Setting selectedAreas to:', areas);
     
-    setSelectedCities(cities);
-    setSelectedAreas(areas);
-    setShowAssignmentModal(true);
+    // Set the state and show modal
+    setSelectedCities([...cities]); // Create new array to trigger re-render
+    setSelectedAreas([...areas]); // Create new array to trigger re-render
+    
+    // Small delay to ensure state is set before showing modal
+    setTimeout(() => {
+      setShowAssignmentModal(true);
+    }, 100);
   };
 
   const toggleCitySelection = (cityName: string) => {
+    if (!cityName || cityName.trim() === '') return;
+    
+    console.log('Toggling city:', cityName, 'Current cities:', selectedCities);
+    
     setSelectedCities(prev => {
-      const currentCities = Array.isArray(prev) ? prev : [];
+      const currentCities = Array.isArray(prev) ? [...prev] : [];
       const hasCity = currentCities.includes(cityName);
-      return hasCity 
+      
+      const newCities = hasCity 
         ? currentCities.filter(c => c !== cityName)
         : [...currentCities, cityName];
+      
+      console.log('New cities after toggle:', newCities);
+      return newCities;
     });
   };
 
   const toggleAreaSelection = (areaName: string) => {
+    if (!areaName || areaName.trim() === '') return;
+    
+    console.log('Toggling area:', areaName, 'Current areas:', selectedAreas);
+    
     setSelectedAreas(prev => {
-      const currentAreas = Array.isArray(prev) ? prev : [];
+      const currentAreas = Array.isArray(prev) ? [...prev] : [];
       const hasArea = currentAreas.includes(areaName);
-      return hasArea 
+      
+      const newAreas = hasArea 
         ? currentAreas.filter(a => a !== areaName)
         : [...currentAreas, areaName];
+      
+      console.log('New areas after toggle:', newAreas);
+      return newAreas;
     });
   };
 
   const saveAssignment = async () => {
-    if (!selectedUser) return;
+    if (!selectedUser) {
+      Alert.alert('Error', 'No user selected');
+      return;
+    }
 
     console.log('Save assignment - selectedUser:', selectedUser);
     console.log('Save assignment - selectedCities:', selectedCities);
@@ -203,25 +271,57 @@ const AdminAssignmentScreen: React.FC = () => {
 
     setLoading(true);
     try {
-      // Ensure arrays are defined
-      const citiesToSave = selectedCities || [];
-      const areasToSave = selectedAreas || [];
+      // Ensure arrays are properly initialized and valid
+      const citiesToSave = Array.isArray(selectedCities) 
+        ? selectedCities.filter(city => city != null && city.trim() !== '') 
+        : [];
+      const areasToSave = Array.isArray(selectedAreas) 
+        ? selectedAreas.filter(area => area != null && area.trim() !== '') 
+        : [];
       
       console.log('Save assignment - citiesToSave:', citiesToSave);
       console.log('Save assignment - areasToSave:', areasToSave);
       
-      // Save to Firestore
-      await setDoc(doc(db, 'users', selectedUser.uid || selectedUser.id), {
+      // Validate user document ID
+      const userDocId = selectedUser.uid || selectedUser.id;
+      if (!userDocId || userDocId.trim() === '') {
+        throw new Error('User document ID is missing or invalid');
+      }
+      
+      console.log('User document ID:', userDocId);
+      
+      // Validate db instance
+      if (!db) {
+        throw new Error('Firestore database instance is not initialized');
+      }
+      
+      // Create update data object with proper validation
+      const updateData = {
         assignedCities: citiesToSave,
         assignedAreas: areasToSave,
         updated_at: new Date(),
-      }, { merge: true });
+      };
+      
+      console.log('Update data:', updateData);
+      
+      // Save to Firestore with additional error handling
+      try {
+        await setDoc(doc(db, 'users', userDocId), updateData, { merge: true });
+        console.log('Firestore update successful');
+      } catch (firestoreError: any) {
+        console.error('Firestore error details:', firestoreError);
+        throw new Error(`Firestore update failed: ${firestoreError.message}`);
+      }
       
       // Send data to Google Apps Script
       try {
         const scriptUrl = 'https://script.google.com/macros/s/AKfycbwVhNTYSzGBddUDDOMBw3vOTlNKdJA3859dwb5YO2eWgIzM6Ao3fNRw_wZDFep1_S19/exec';
+        
+        // Safely join arrays
         const key1 = citiesToSave.join(',');
         const key2 = areasToSave.join(',');
+        
+        console.log('Sending to script - key1:', key1, 'key2:', key2);
         
         const response = await fetch(`${scriptUrl}?key1=${encodeURIComponent(key1)}&key2=${encodeURIComponent(key2)}`);
         
@@ -242,65 +342,85 @@ const AdminAssignmentScreen: React.FC = () => {
       
       Alert.alert('Success', 'Cities and areas assigned successfully!');
       setShowAssignmentModal(false);
-      loadData();
-    } catch (error) {
+      
+      // Update local state to reflect changes
+      setUsers(prevUsers => 
+        prevUsers.map(user => 
+          (user.uid || user.id) === userDocId 
+            ? { ...user, assignedCities: citiesToSave, assignedAreas: areasToSave }
+            : user
+        )
+      );
+      
+    } catch (error: any) {
       console.error('Error saving assignment:', error);
-      Alert.alert('Error', 'Failed to save assignment');
+      Alert.alert('Error', `Failed to save assignment: ${error.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
   };
 
-  const renderUserCard = (userItem: User) => (
-    <View key={userItem.uid || userItem.id} style={[styles.userCard, { backgroundColor: theme.colors.surface }]}>
-      <View style={styles.userHeader}>
-        <Icon name="person" size={24} color={theme.colors.primary} />
-        <View style={styles.userInfo}>
-          <Text style={[styles.userName, { color: theme.colors.text }]}>{userItem.name}</Text>
-          <Text style={[styles.userEmail, { color: theme.colors.secondary }]}>{userItem.email}</Text>
+  const renderUserCard = (userItem: User) => {
+    const userKey = userItem.uid || userItem.id || userItem.email;
+    const assignedCities = Array.isArray(userItem.assignedCities) ? userItem.assignedCities : [];
+    const assignedAreas = Array.isArray(userItem.assignedAreas) ? userItem.assignedAreas : [];
+    
+    return (
+      <View key={userKey} style={[styles.userCard, { backgroundColor: theme.colors.surface }]}>
+        <View style={styles.userHeader}>
+          <Icon name="person" size={24} color={theme.colors.primary} />
+          <View style={styles.userInfo}>
+            <Text style={[styles.userName, { color: theme.colors.text }]}>{userItem.name || 'Unknown User'}</Text>
+            <Text style={[styles.userEmail, { color: theme.colors.secondary }]}>{userItem.email || 'No email'}</Text>
+          </View>
+          <TouchableOpacity
+            style={[styles.assignButton, { backgroundColor: theme.colors.primary }]}
+            onPress={() => openAssignmentModal(userItem)}
+          >
+            <Text style={styles.assignButtonText}>Assign</Text>
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity
-          style={[styles.assignButton, { backgroundColor: theme.colors.primary }]}
-          onPress={() => openAssignmentModal(userItem)}
-        >
-          <Text style={styles.assignButtonText}>Assign</Text>
-        </TouchableOpacity>
+        
+        {/* Show current assignments */}
+        {assignedCities.length > 0 && (
+          <View style={styles.assignmentSection}>
+            <Text style={[styles.assignmentLabel, { color: theme.colors.text }]}>🏙️ Cities:</Text>
+            <View style={styles.assignmentTags}>
+              {assignedCities.map((city, index) => (
+                <View key={`${userKey}-city-${index}`} style={[styles.assignmentTag, { backgroundColor: '#E3F2FD' }]}>
+                  <Text style={[styles.assignmentTagText, { color: '#1976D2' }]}>{city}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+        
+        {assignedAreas.length > 0 && (
+          <View style={styles.assignmentSection}>
+            <Text style={[styles.assignmentLabel, { color: theme.colors.text }]}>📍 Areas:</Text>
+            <View style={styles.assignmentTags}>
+              {assignedAreas.map((area, index) => (
+                <View key={`${userKey}-area-${index}`} style={[styles.assignmentTag, { backgroundColor: '#E8F5E8' }]}>
+                  <Text style={[styles.assignmentTagText, { color: '#2E7D32' }]}>{area}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
       </View>
-      
-      {/* Show current assignments */}
-      {userItem.assignedCities && userItem.assignedCities.length > 0 && (
-        <View style={styles.assignmentSection}>
-          <Text style={[styles.assignmentLabel, { color: theme.colors.text }]}>🏙️ Cities:</Text>
-          <View style={styles.assignmentTags}>
-            {userItem.assignedCities.map((city, index) => (
-              <View key={index} style={[styles.assignmentTag, { backgroundColor: '#E3F2FD' }]}>
-                <Text style={[styles.assignmentTagText, { color: '#1976D2' }]}>{city}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-      )}
-      
-      {userItem.assignedAreas && userItem.assignedAreas.length > 0 && (
-        <View style={styles.assignmentSection}>
-          <Text style={[styles.assignmentLabel, { color: theme.colors.text }]}>📍 Areas:</Text>
-          <View style={styles.assignmentTags}>
-            {userItem.assignedAreas.map((area, index) => (
-              <View key={index} style={[styles.assignmentTag, { backgroundColor: '#E8F5E8' }]}>
-                <Text style={[styles.assignmentTagText, { color: '#2E7D32' }]}>{area}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-      )}
-    </View>
-  );
+    );
+  };
 
   const renderSelectionModal = () => (
     <Modal
       visible={showAssignmentModal}
       animationType="slide"
       presentationStyle="pageSheet"
+      onShow={() => {
+        // Debug log when modal shows
+        console.log('Modal shown - selectedCities:', selectedCities);
+        console.log('Modal shown - selectedAreas:', selectedAreas);
+      }}
     >
       <SafeAreaView style={[styles.modalContainer, { backgroundColor: theme.colors.background }]}>
         <View style={styles.modalHeader}>
@@ -308,10 +428,12 @@ const AdminAssignmentScreen: React.FC = () => {
             <Icon name="close" size={24} color={theme.colors.text} />
           </TouchableOpacity>
           <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
-            Assign to {selectedUser?.name}
+            Assign to {selectedUser?.name || 'User'}
           </Text>
           <TouchableOpacity onPress={saveAssignment} disabled={loading}>
-            <Text style={[styles.saveButton, { color: theme.colors.primary }]}>Save</Text>
+            <Text style={[styles.saveButton, { color: loading ? theme.colors.secondary : theme.colors.primary }]}>
+              {loading ? 'Saving...' : 'Save'}
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -319,72 +441,78 @@ const AdminAssignmentScreen: React.FC = () => {
           {/* Cities Selection */}
           <View style={styles.selectionSection}>
             <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-              🏙️ Select Cities ({(selectedCities || []).length} selected)
+              🏙️ Select Cities ({selectedCities.length} selected)
             </Text>
             <View style={styles.selectionGrid}>
-              {cities.map((city) => (
-                <TouchableOpacity
-                  key={city.id}
-                  style={[
-                    styles.selectionItem,
-                    {
-                      backgroundColor: (selectedCities || []).includes(city.name)
-                        ? theme.colors.primary
-                        : theme.colors.surface,
-                    },
-                  ]}
-                  onPress={() => toggleCitySelection(city.name)}
-                >
-                  <Text
+              {cities.map((city) => {
+                const isSelected = selectedCities.includes(city.name);
+                return (
+                  <TouchableOpacity
+                    key={city.id}
                     style={[
-                      styles.selectionItemText,
+                      styles.selectionItem,
                       {
-                        color: (selectedCities || []).includes(city.name)
-                          ? '#fff'
-                          : theme.colors.text,
+                        backgroundColor: isSelected
+                          ? theme.colors.primary
+                          : theme.colors.surface,
+                        borderWidth: isSelected ? 0 : 1,
+                        borderColor: isSelected ? 'transparent' : '#e0e0e0',
                       },
                     ]}
+                    onPress={() => toggleCitySelection(city.name)}
                   >
-                    {city.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                    <Text
+                      style={[
+                        styles.selectionItemText,
+                        {
+                          color: isSelected ? '#fff' : theme.colors.text,
+                        },
+                      ]}
+                    >
+                      {city.name}
+                      {isSelected && ' ✓'}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </View>
 
           {/* Areas Selection */}
           <View style={styles.selectionSection}>
             <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-              📍 Select Areas ({(selectedAreas || []).length} selected)
+              📍 Select Areas ({selectedAreas.length} selected)
             </Text>
             <View style={styles.selectionGrid}>
-              {areas.map((area) => (
-                <TouchableOpacity
-                  key={area.id}
-                  style={[
-                    styles.selectionItem,
-                    {
-                      backgroundColor: (selectedAreas || []).includes(area.name)
-                        ? '#4CAF50'
-                        : theme.colors.surface,
-                    },
-                  ]}
-                  onPress={() => toggleAreaSelection(area.name)}
-                >
-                  <Text
+              {areas.map((area) => {
+                const isSelected = selectedAreas.includes(area.name);
+                return (
+                  <TouchableOpacity
+                    key={area.id}
                     style={[
-                      styles.selectionItemText,
+                      styles.selectionItem,
                       {
-                        color: (selectedAreas || []).includes(area.name)
-                          ? '#fff'
-                          : theme.colors.text,
+                        backgroundColor: isSelected ? '#4CAF50' : theme.colors.surface,
+                        borderWidth: isSelected ? 0 : 1,
+                        borderColor: isSelected ? 'transparent' : '#e0e0e0',
                       },
                     ]}
+                    onPress={() => toggleAreaSelection(area.name)}
                   >
-                    {area.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                    <Text
+                      style={[
+                        styles.selectionItemText,
+                        {
+                          color: isSelected ? '#fff' : theme.colors.text,
+                        },
+                      ]}
+                    >
+                      {area.name}
+                      {isSelected && ' ✓'}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           </View>
         </ScrollView>
@@ -425,6 +553,12 @@ const AdminAssignmentScreen: React.FC = () => {
       ) : (
         <ScrollView style={styles.scrollView}>
           {users.map(renderUserCard)}
+          {users.length === 0 && (
+            <View style={styles.noDataContainer}>
+              <Icon name="people-outline" size={48} color={theme.colors.secondary} />
+              <Text style={[styles.noDataText, { color: theme.colors.text }]}>No users found</Text>
+            </View>
+          )}
         </ScrollView>
       )}
 
@@ -540,6 +674,16 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     marginTop: 16,
+  },
+  noDataContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 50,
+  },
+  noDataText: {
+    fontSize: 16,
+    marginTop: 12,
   },
   // Modal styles
   modalContainer: {

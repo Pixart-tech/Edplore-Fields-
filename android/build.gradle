@@ -1,0 +1,38 @@
+
+buildscript {
+    ext {
+        kotlin_version = '1.9.24' // ✅ stable version supported by RN/Expo
+    }
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath("com.android.tools.build:gradle:8.6.1") // ✅ match Gradle wrapper version
+        classpath("com.facebook.react:react-native-gradle-plugin")
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version")
+    }
+}
+
+def reactNativeAndroidDir = new File(
+    providers.exec {
+        workingDir(rootDir)
+        commandLine("node", "--print", "require.resolve('react-native/package.json')")
+    }.standardOutput.asText.get().trim(),
+    "../android"
+)
+
+allprojects {
+    repositories {
+        // All of React Native (JS, Obj-C sources, Android binaries) is installed from npm
+        maven { url(reactNativeAndroidDir) }
+
+        google()
+        mavenCentral()
+        maven { url 'https://www.jitpack.io' }
+    }
+}
+
+// Expo + React Native root project plugins
+apply plugin: "expo-root-project"
+apply plugin: "com.facebook.react.rootproject"

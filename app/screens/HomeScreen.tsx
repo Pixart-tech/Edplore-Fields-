@@ -110,11 +110,11 @@ const HomeScreen: React.FC = () => {
     try {
       if (isTracking) {
         await stopUnifiedTracking();
-        Alert.alert('Success', 'Location tracking stopped - Your location is now private');
+        Alert.alert('Success', 'Location tracking stopped');
       } else {
         Alert.alert(
           'Start Location Tracking',
-          'This will track your location for distance calculation and allow admin to see your real-time location. Continue?',
+          'This will track your location for distance calculation. Continue?',
           [
             { text: 'Cancel', style: 'cancel' },
             {
@@ -122,7 +122,7 @@ const HomeScreen: React.FC = () => {
               onPress: async () => {
                 try {
                   await startUnifiedTracking();
-                  Alert.alert('Success', 'Location tracking started - Admin can now see your location');
+                  Alert.alert('Success', 'Location tracking started');
                 } catch (error) {
                   Alert.alert('Error', 'Failed to start location tracking');
                 }
