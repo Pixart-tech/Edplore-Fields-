@@ -9,6 +9,7 @@ import {
   ScrollView,
   ActivityIndicator,
   StyleSheet,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { db } from '../../src/firebase';
@@ -24,6 +25,22 @@ import Filter from '../components/filter';
 import { Marker, Region } from 'react-native-maps';
 import ClusteredMarkers from '../components/ClusteredMarkers';
 import type { Organization } from '../types/organization';
+
+type EditFormState = {
+  name: string;
+  address: string;
+  status: string;
+  currentStatusDetails: string;
+  assignee: string;
+};
+
+const INITIAL_EDIT_FORM: EditFormState = {
+  name: '',
+  address: '',
+  status: '',
+  currentStatusDetails: '',
+  assignee: '',
+};
 
 const LIVE_TRACKING_COLORS = [
   '#D32F2F',
@@ -52,6 +69,7 @@ const MapsScreen: React.FC = () => {
   const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null);
   const [showDetails, setShowDetails] = useState(false);
   const [showMeetingForm, setShowMeetingForm] = useState(false);
+  const [showEditForm, setShowEditForm] = useState(false);
   const [assignedOrganizations, setAssignedOrganizations] = useState<Organization[]>([]);
   const [userAssignedData, setUserAssignedData] = useState<{
     cities: string[];
@@ -62,11 +80,78 @@ const MapsScreen: React.FC = () => {
     description: '',
     scheduledTime: '',
   });
+  const [editFormData, setEditFormData] = useState<EditFormState>(INITIAL_EDIT_FORM);
+
+  const handlePhonePress = useCallback((phone?: string) => {
+    if (!phone) {
+      return;
+    }
+
+    const normalized = phone.replace(/[\s()-]/g, '').trim();
+    if (!normalized || !/\d/.test(normalized)) {
+      return;
+    }
+
+    Linking.openURL(`tel:${normalized}`);
+  }, []);
+
+  const handleWhatsAppPress = useCallback((whatsapp?: string) => {
+    if (!whatsapp) {
+      return;
+    }
+
+    const digitsOnly = whatsapp.replace(/\D/g, '');
+    if (!digitsOnly) {
+      return;
+    }
+
+    Linking.openURL(`https://wa.me/${digitsOnly}`);
+  }, []);
+
+  const handleWebsitePress = useCallback((website?: string) => {
+    if (!website) {
+      return;
+    }
+
+    const trimmed = website.trim();
+    if (!trimmed) {
+      return;
+    }
+
+    const url = trimmed.startsWith('http://') || trimmed.startsWith('https://') ? trimmed : `https://${trimmed}`;
+    Linking.openURL(url);
+  }, []);
 
   const handleOrganizationPress = useCallback((organization: Organization) => {
     setSelectedOrg(organization);
     setShowDetails(true);
   }, []);
+
+  const renderDetailRow = useCallback(
+    (iconName: string, content: string) => (
+      <View style={styles.detailRow}>
+        <Icon name={iconName} size={20} color={theme.colors.primary} />
+        <Text style={[styles.detailText, { color: theme.colors.text }]}>{content}</Text>
+      </View>
+    ),
+    [theme.colors.primary, theme.colors.text],
+  );
+
+  const locationText = useMemo(() => {
+    if (!selectedOrg) {
+      return '';
+    }
+
+    const parts = [selectedOrg.city, selectedOrg.state].filter(
+      (part): part is string => !!part && part.trim().length > 0,
+    );
+
+    if (parts.length === 0) {
+      return '';
+    }
+
+    return parts.join(', ');
+  }, [selectedOrg]);
 
   useEffect(() => {
     if (user?.role === 'admin') {
@@ -298,6 +383,98 @@ const MapsScreen: React.FC = () => {
     setShowDetails(false);
     setShowMeetingForm(true);
   };
+
+  const handleEditOrganization = useCallback(() => {
+    if (!selectedOrg) {
+      return;
+    }
+
+    setEditFormData({
+      name: selectedOrg.name,
+      address: selectedOrg.address,
+      status: selectedOrg.status ?? '',
+      currentStatusDetails: selectedOrg.currentStatusDetails ?? '',
+      assignee: selectedOrg.assignee ?? '',
+    });
+    setShowDetails(false);
+    setShowEditForm(true);
+  }, [selectedOrg]);
+
+  const handleEditInputChange = useCallback((field: keyof EditFormState, value: string) => {
+    setEditFormData((prev) => ({ ...prev, [field]: value }));
+  }, []);
+
+  const handleCancelEdit = useCallback(() => {
+    setShowEditForm(false);
+    setEditFormData(INITIAL_EDIT_FORM);
+    setShowDetails(true);
+  }, []);
+
+  const handleSaveEdit = useCallback(() => {
+    if (!selectedOrg) {
+      Alert.alert('Error', 'No organization selected to edit.');
+      return;
+    }
+
+    const updatedOrg: Organization = {
+      ...selectedOrg,
+      name: editFormData.name,
+      address: editFormData.address,
+      status: editFormData.status,
+      currentStatusDetails: editFormData.currentStatusDetails,
+      assignee: editFormData.assignee,
+    };
+
+    setOrganizations((prev) => prev.map((org) => (org.id === updatedOrg.id ? updatedOrg : org)));
+    setFilteredOrganizations((prev) => prev.map((org) => (org.id === updatedOrg.id ? updatedOrg : org)));
+    setAssignedOrganizations((prev) => prev.map((org) => (org.id === updatedOrg.id ? updatedOrg : org)));
+    setFilterMarkers((prev) => {
+      if (!prev) {
+        return prev;
+      }
+      return prev.map((org) => (org.id === updatedOrg.id ? updatedOrg : org));
+    });
+    setSelectedOrg(updatedOrg);
+    setEditFormData(INITIAL_EDIT_FORM);
+    setShowEditForm(false);
+    setShowDetails(true);
+    Alert.alert('Success', 'Organization details updated.');
+  }, [editFormData, selectedOrg]);
+
+  const handleOpenDirections = useCallback(async () => {
+    if (!selectedOrg) {
+      return;
+    }
+
+    const { latitude, longitude, name, address } = selectedOrg;
+
+    if (typeof latitude !== 'number' || typeof longitude !== 'number' || Number.isNaN(latitude) || Number.isNaN(longitude)) {
+      Alert.alert('Directions unavailable', 'This organization does not have valid coordinates.');
+      return;
+    }
+
+    const baseUrl = 'https://www.google.com/maps/dir/?api=1';
+    const queryParams = [`destination=${encodeURIComponent(`${latitude},${longitude}`)}`];
+
+    const label = [name, address].filter(Boolean).join(' ');
+    if (label) {
+      queryParams.push(`query=${encodeURIComponent(label)}`);
+    }
+
+    const url = `${baseUrl}&${queryParams.join('&')}`;
+
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        Alert.alert('Unable to open directions', 'No application is available to handle the directions link.');
+      }
+    } catch (error) {
+      console.error('Error opening directions:', error);
+      Alert.alert('Error', 'Failed to open directions.');
+    }
+  }, [selectedOrg]);
 
   const submitMeeting = async () => {
     if (!meetingData.title || !meetingData.scheduledTime) {
@@ -565,7 +742,7 @@ const MapsScreen: React.FC = () => {
 
       {/* Organization Details Modal */}
       <Modal
-        visible={showDetails}
+        visible={showDetails && !!selectedOrg}
         animationType="slide"
         transparent
         onRequestClose={() => setShowDetails(false)}
@@ -597,12 +774,16 @@ const MapsScreen: React.FC = () => {
               </View>
 
               {selectedOrg?.contact && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}
+                  onPress={() => handlePhonePress(selectedOrg.contact)}
+                  activeOpacity={0.7}
+                >
                   <Icon name="phone" size={20} color={theme.colors.primary} />
                   <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
                     {selectedOrg.contact}
                   </Text>
-                </View>
+                </TouchableOpacity>
               )}
 
               {selectedOrg?.description && (
@@ -633,12 +814,16 @@ const MapsScreen: React.FC = () => {
               )}
 
               {selectedOrg?.website && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}
+                  onPress={() => handleWebsitePress(selectedOrg.website)}
+                  activeOpacity={0.7}
+                >
                   <Icon name="web" size={20} color={theme.colors.primary} />
                   <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
                     Website: {selectedOrg.website}
                   </Text>
-                </View>
+                </TouchableOpacity>
               )}
 
               {selectedOrg?.numberOfStudents && (
@@ -660,21 +845,29 @@ const MapsScreen: React.FC = () => {
               )}
 
               {selectedOrg?.phoneDM && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}
+                  onPress={() => handlePhonePress(selectedOrg.phoneDM)}
+                  activeOpacity={0.7}
+                >
                   <Icon name="phone" size={20} color={theme.colors.primary} />
                   <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
                     DM Phone: {selectedOrg.phoneDM}
                   </Text>
-                </View>
+                </TouchableOpacity>
               )}
 
               {selectedOrg?.whatsapp && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}
+                  onPress={() => handleWhatsAppPress(selectedOrg.whatsapp)}
+                  activeOpacity={0.7}
+                >
                   <Icon name="chat" size={20} color={theme.colors.primary} />
                   <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
                     WhatsApp: {selectedOrg.whatsapp}
                   </Text>
-                </View>
+                </TouchableOpacity>
               )}
 
               {selectedOrg?.eventTitle && (
@@ -693,16 +886,163 @@ const MapsScreen: React.FC = () => {
                     Start: {selectedOrg.startDate} at {selectedOrg.startTime}
                   </Text>
                 </View>
+            <ScrollView style={styles.modalBody}>
+              {selectedOrg && (
+                <>
+                  {renderDetailRow('business', selectedOrg.category)}
+                  {renderDetailRow('location-city', locationText || `${selectedOrg.city}, ${selectedOrg.state}`)}
+                  {selectedOrg.contact?.trim() ? renderDetailRow('phone', selectedOrg.contact) : null}
+                  {selectedOrg.description?.trim() ? renderDetailRow('info', selectedOrg.description) : null}
+                  {selectedOrg.type?.trim() ? renderDetailRow('category', `Type: ${selectedOrg.type}`) : null}
+                  {selectedOrg.ratings?.trim() ? renderDetailRow('star', `Ratings: ${selectedOrg.ratings}`) : null}
+                  {selectedOrg.website?.trim() ? renderDetailRow('web', `Website: ${selectedOrg.website}`) : null}
+                  {selectedOrg.numberOfStudents?.trim()
+                    ? renderDetailRow('school', `Students: ${selectedOrg.numberOfStudents}`)
+                    : null}
+                  {selectedOrg.decisionMakerName?.trim()
+                    ? renderDetailRow('person', `Decision Maker: ${selectedOrg.decisionMakerName}`)
+                    : null}
+                  {selectedOrg.phoneDM?.trim() ? renderDetailRow('phone', `DM Phone: ${selectedOrg.phoneDM}`) : null}
+                  {selectedOrg.whatsapp?.trim() ? renderDetailRow('chat', `WhatsApp: ${selectedOrg.whatsapp}`) : null}
+                  {selectedOrg.currentStatus?.trim()
+                    ? renderDetailRow('update', `Current Status: ${selectedOrg.currentStatus}`)
+                    : null}
+                  {selectedOrg.currentStatusDetails?.trim()
+                    ? renderDetailRow('description', `Status Details: ${selectedOrg.currentStatusDetails}`)
+                    : null}
+                  {selectedOrg.beforeSchool?.trim()
+                    ? renderDetailRow('watch-later', `Before School: ${selectedOrg.beforeSchool}`)
+                    : null}
+                  {selectedOrg.afterSchool?.trim()
+                    ? renderDetailRow('event-available', `After School: ${selectedOrg.afterSchool}`)
+                    : null}
+                  {selectedOrg.addOns?.trim() ? renderDetailRow('extension', `Add-ons: ${selectedOrg.addOns}`) : null}
+                  {selectedOrg.eventTitle?.trim()
+                    ? renderDetailRow('event', `Event: ${selectedOrg.eventTitle}`)
+                    : null}
+                  {selectedOrg.startDate?.trim() && selectedOrg.startTime?.trim()
+                    ? renderDetailRow('schedule', `Start: ${selectedOrg.startDate} at ${selectedOrg.startTime}`)
+                    : null}
+                </>
               )}
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <View style={styles.footerButtonRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.actionButton,
+                    styles.footerButton,
+                    { backgroundColor: theme.colors.warning, marginRight: 12 },
+                  ]}
+                  onPress={handleEditOrganization}
+                >
+                  <Icon name="edit" size={20} color="#fff" />
+                  <Text style={styles.actionButtonText}>Edit</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.actionButton,
+                    styles.footerButton,
+                    { backgroundColor: theme.colors.success, marginRight: 12 },
+                  ]}
+                  onPress={handleOpenDirections}
+                >
+                  <Icon name="directions" size={20} color="#fff" />
+                  <Text style={styles.actionButtonText}>Directions</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.actionButton,
+                    styles.footerButton,
+                    { backgroundColor: theme.colors.primary },
+                  ]}
+                  onPress={handleScheduleMeeting}
+                >
+                  <Icon name="event" size={20} color="#fff" />
+                  <Text style={styles.actionButtonText}>Schedule Meeting</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Edit Organization Modal */}
+      <Modal
+        visible={showEditForm}
+        animationType="slide"
+        transparent
+        onRequestClose={handleCancelEdit}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'flex-end' }}>
+          <View style={{ borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '85%', backgroundColor: theme.colors.surface }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#e0e0e0' }}>
+              <Text style={{ fontSize: 20, fontWeight: 'bold', color: theme.colors.text }}>
+                Edit Organization
+              </Text>
+              <TouchableOpacity onPress={handleCancelEdit}>
+                <Icon name="close" size={24} color={theme.colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ padding: 20 }}>
+              <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 8, color: theme.colors.text }}>Name</Text>
+              <TextInput
+                style={{ borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, borderColor: theme.colors.border, color: theme.colors.text }}
+                value={editFormData.name}
+                onChangeText={(text) => handleEditInputChange('name', text)}
+                placeholder="Organization name"
+                placeholderTextColor={theme.colors.secondary}
+              />
+
+              <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 8, marginTop: 16, color: theme.colors.text }}>Address</Text>
+              <TextInput
+                style={{ borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, borderColor: theme.colors.border, color: theme.colors.text }}
+                value={editFormData.address}
+                onChangeText={(text) => handleEditInputChange('address', text)}
+                placeholder="Organization address"
+                placeholderTextColor={theme.colors.secondary}
+              />
+
+              <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 8, marginTop: 16, color: theme.colors.text }}>Status</Text>
+              <TextInput
+                style={{ borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, borderColor: theme.colors.border, color: theme.colors.text }}
+                value={editFormData.status}
+                onChangeText={(text) => handleEditInputChange('status', text)}
+                placeholder="Current status"
+                placeholderTextColor={theme.colors.secondary}
+              />
+
+              <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 8, marginTop: 16, color: theme.colors.text }}>Status Details</Text>
+              <TextInput
+                style={{ borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, height: 100, textAlignVertical: 'top', borderColor: theme.colors.border, color: theme.colors.text }}
+                value={editFormData.currentStatusDetails}
+                onChangeText={(text) => handleEditInputChange('currentStatusDetails', text)}
+                placeholder="Additional details"
+                placeholderTextColor={theme.colors.secondary}
+                multiline
+              />
+
+              <Text style={{ fontSize: 16, fontWeight: '600', marginBottom: 8, marginTop: 16, color: theme.colors.text }}>Assignee</Text>
+              <TextInput
+                style={{ borderWidth: 1, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, borderColor: theme.colors.border, color: theme.colors.text }}
+                value={editFormData.assignee}
+                onChangeText={(text) => handleEditInputChange('assignee', text)}
+                placeholder="Assigned to"
+                placeholderTextColor={theme.colors.secondary}
+              />
             </ScrollView>
 
             <View style={{ padding: 20, borderTopWidth: 1, borderTopColor: '#e0e0e0' }}>
               <TouchableOpacity
-                style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, paddingHorizontal: 24, borderRadius: 8, backgroundColor: theme.colors.primary }}
-                onPress={handleScheduleMeeting}
+                style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 8, backgroundColor: theme.colors.primary }}
+                onPress={handleSaveEdit}
               >
-                <Icon name="event" size={20} color="#fff" />
-                <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600', marginLeft: 8 }}>Schedule Meeting</Text>
+                <Icon name="save" size={20} color="#fff" />
+                <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600', marginLeft: 8 }}>Save Changes</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -906,6 +1246,18 @@ const styles = StyleSheet.create({
   detailText: {
     marginLeft: 12,
     fontSize: 16,
+    flex: 1,
+  },
+  modalFooter: {
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+  },
+  footerButtonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  footerButton: {
     flex: 1,
   },
   modalActions: {
