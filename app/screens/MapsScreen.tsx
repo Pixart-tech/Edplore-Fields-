@@ -8,7 +8,6 @@ import {
   Alert,
   ScrollView,
   ActivityIndicator,
-  Dimensions,
   StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -20,49 +19,11 @@ import { useLocation } from '../../src/context/LocationContext';
 import { useTheme } from '../../src/context/ThemeContext';
 import Icon from '@expo/vector-icons/MaterialIcons';
 import Constants from 'expo-constants';
-import { getMarkerColor, getMarkerLabel } from '../components/category';
+import { getMarkerColor } from '../components/category';
 import Filter from '../components/filter';
-import { Region as MapRegion, Marker, Region } from 'react-native-maps';
-
-const { width, height } = Dimensions.get('window');
-
-interface Organization {
-  id: string;
-  name: string;
-  address: string;
-  latitude: number;
-  longitude: number;
-  city: string;
-  state: string;
-  category: string;
-  contact?: string;
-  description?: string;
-  type?: string;
-  ratings?: string;
-  star?: string;
-  website?: string;
-  status?: string;
-  pulseCode?: string;
-  numberOfStudents?: string;
-  currentPublicationName?: string;
-  decisionMakerName?: string;
-  phoneDM?: string;
-  ho?: string;
-  currentStatusDetails?: string;
-  demo?: string;
-  assignee?: string;
-  whatsapp?: string;
-  eventTitle?: string;
-  startDate?: string;
-  startTime?: string;
-  endDate?: string;
-  endTime?: string;
-  location?: string;
-  guests?: string;
-  beforeSchool?: string;
-  afterSchool?: string;
-  addOns?: string;
-}
+import { Marker, Region } from 'react-native-maps';
+import ClusteredMarkers from '../components/ClusteredMarkers';
+import type { Organization } from '../types/organization';
 
 const LIVE_TRACKING_COLORS = [
   '#D32F2F',
@@ -78,56 +39,6 @@ const LIVE_TRACKING_COLORS = [
   '#C2185B',
   '#00796B',
 ];
-
-interface OrganizationMarkerProps {
-  org: Organization;
-  onPress: (organization: Organization) => void;
-}
-
-const OrganizationMarker = React.memo(({ org, onPress }: OrganizationMarkerProps) => {
-  const [tracksViewChanges, setTracksViewChanges] = useState(true);
-
-  const markerColor = getMarkerColor(org.status, org.category);
-  const { label, shapeStyle } = getMarkerLabel(org.category);
-
-  const handleLayout = useCallback(() => {
-    if (tracksViewChanges) {
-      setTracksViewChanges(false);
-    }
-  }, [tracksViewChanges]);
-
-  const handlePress = useCallback(() => {
-    onPress(org);
-  }, [onPress, org]);
-
-  return (
-    <Marker
-      coordinate={{
-        latitude: org.latitude,
-        longitude: org.longitude,
-      }}
-      onPress={handlePress}
-      title={org.name}
-      description={org.category}
-      tracksViewChanges={tracksViewChanges}
-    >
-      <View
-        style={[
-          styles.customMarker,
-          { backgroundColor: markerColor },
-          shapeStyle,
-        ]}
-        onLayout={handleLayout}
-      >
-        <Text style={styles.customMarkerLabel}>
-          {label}
-        </Text>
-      </View>
-    </Marker>
-  );
-});
-
-OrganizationMarker.displayName = 'OrganizationMarker';
 
 const MapsScreen: React.FC = () => {
   const { user } = useAuth();
@@ -413,21 +324,21 @@ const MapsScreen: React.FC = () => {
     }
   };
 
-  const getMapRegion = () => {
+  const computedMapRegion = useMemo<Region>(() => {
     const latitudes: number[] = [];
     const longitudes: number[] = [];
 
-    if (filteredOrganizations.length > 0) {
-      filteredOrganizations.forEach((org) => {
-        latitudes.push(org.latitude);
-        longitudes.push(org.longitude);
-      });
-    }
+    filteredOrganizations.forEach((org) => {
+      latitudes.push(org.latitude);
+      longitudes.push(org.longitude);
+    });
 
-    if (user?.role === 'admin' && liveUsers.length > 0) {
+    if (user?.role === 'admin') {
       liveUsers.forEach((liveUser) => {
-        latitudes.push(liveUser.location.latitude);
-        longitudes.push(liveUser.location.longitude);
+        if (liveUser.location) {
+          latitudes.push(liveUser.location.latitude);
+          longitudes.push(liveUser.location.longitude);
+        }
       });
     }
 
@@ -462,7 +373,13 @@ const MapsScreen: React.FC = () => {
       latitudeDelta: deltaLat,
       longitudeDelta: deltaLng,
     };
-  };
+  }, [filteredOrganizations, liveUsers, currentLocation, user?.role]);
+
+  const [visibleRegion, setVisibleRegion] = useState<Region>(computedMapRegion);
+
+  useEffect(() => {
+    setVisibleRegion(computedMapRegion);
+  }, [computedMapRegion]);
 
   // Handle filter updates from Filter component
   const handleFilterUpdate = (nextMarkers: Organization[]) => {
@@ -603,15 +520,15 @@ const MapsScreen: React.FC = () => {
             key={`map-${filteredOrganizations.length}`}
             style={{ flex: 1, width: '100%', height: '100%' }}
             provider={PROVIDER_GOOGLE}
-            initialRegion={getMapRegion()}
+            initialRegion={computedMapRegion}
+            region={visibleRegion}
+            onRegionChangeComplete={setVisibleRegion}
           >
-            {filteredOrganizations.map((org) => (
-              <OrganizationMarker
-                key={`${org.id}-${org.latitude}-${org.longitude}`}
-                org={org}
-                onPress={handleOrganizationPress}
-              />
-            ))}
+            <ClusteredMarkers
+              organizations={filteredOrganizations}
+              region={visibleRegion}
+              onMarkerPress={handleOrganizationPress}
+            />
 
             {user?.role === 'admin' && liveUsers.map((liveUser, index) => {
               const colorKey = liveUser.userId || liveUser.name || `user-${index}`;
@@ -1043,27 +960,6 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     fontSize: 14,
     fontWeight: '500',
-  },
-  customMarker: {
-    minWidth: 30,
-    minHeight: 30,
-    paddingHorizontal: 6,
-    paddingVertical: 4,
-    borderWidth: 2,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  customMarkerLabel: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
-    textTransform: 'uppercase',
   },
   legendContainer: {
     paddingHorizontal: 16,

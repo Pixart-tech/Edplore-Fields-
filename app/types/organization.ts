@@ -1,0 +1,39 @@
+export interface Organization {
+  id: string;
+  name: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  city: string;
+  state: string;
+  category: string;
+  contact?: string;
+  description?: string;
+  type?: string;
+  ratings?: string;
+  star?: string;
+  website?: string;
+  status?: string;
+  pulseCode?: string;
+  numberOfStudents?: string;
+  currentPublicationName?: string;
+  decisionMakerName?: string;
+  phoneDM?: string;
+  ho?: string;
+  currentStatusDetails?: string;
+  demo?: string;
+  assignee?: string;
+  whatsapp?: string;
+  eventTitle?: string;
+  startDate?: string;
+  startTime?: string;
+  endDate?: string;
+  endTime?: string;
+  location?: string;
+  guests?: string;
+  beforeSchool?: string;
+  afterSchool?: string;
+  addOns?: string;
+}
+
+export type OrganizationList = Organization[];
