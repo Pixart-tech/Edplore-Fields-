@@ -15,6 +15,7 @@ export interface Organization {
   website?: string;
   status?: string;
   pulseCode?: string;
+  recordKey?: string;
   numberOfStudents?: string;
   currentPublicationName?: string;
   decisionMakerName?: string;
@@ -35,6 +36,9 @@ export interface Organization {
   beforeSchool?: string;
   afterSchool?: string;
   addOns?: string;
+  formUrl?: string;
+  mapsUrl?: string;
+  link?: string;
 }
 
 export type OrganizationList = Organization[];

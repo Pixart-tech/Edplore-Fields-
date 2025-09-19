@@ -1,6 +1,7 @@
 import React from 'react';
 import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet, TextInput } from 'react-native';
 import Icon from '@expo/vector-icons/MaterialIcons';
+import { Picker } from '@react-native-picker/picker';
 
 import type { Organization } from '../../types/organization';
 
@@ -19,7 +20,12 @@ type ThemeColors = {
 export type EditFormState = {
   name: string;
   address: string;
+  contact: string;
+  whatsapp: string;
+  category: string;
+  pulseCode: string;
   status: string;
+  currentStatus: string;
   currentStatusDetails: string;
   assignee: string;
 };
@@ -32,6 +38,9 @@ type Props = {
   onClose: () => void;
   onSubmit: () => void;
   organizationName?: Organization['name'];
+  categoryOptions: string[];
+  onOpenExternalForm?: () => void;
+  previousSchools?: string | null;
 };
 
 const EditOrganizationModal: React.FC<Props> = ({
@@ -42,6 +51,9 @@ const EditOrganizationModal: React.FC<Props> = ({
   onClose,
   onSubmit,
   organizationName,
+  categoryOptions,
+  onOpenExternalForm,
+  previousSchools,
 }) => (
   <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
     <View style={styles.modalOverlay}>
@@ -79,12 +91,74 @@ const EditOrganizationModal: React.FC<Props> = ({
             placeholderTextColor={colors.secondary}
           />
 
+          <Text style={[styles.inputLabel, { color: colors.text }]}>Phone</Text>
+          <TextInput
+            style={[styles.textInput, { borderColor: colors.border, color: colors.text }]}
+            value={formData.contact}
+            onChangeText={(value) => onChange('contact', value)}
+            placeholder="Primary phone number"
+            placeholderTextColor={colors.secondary}
+            keyboardType="phone-pad"
+          />
+
+          <Text style={[styles.inputLabel, { color: colors.text }]}>WhatsApp</Text>
+          <TextInput
+            style={[styles.textInput, { borderColor: colors.border, color: colors.text }]}
+            value={formData.whatsapp}
+            onChangeText={(value) => onChange('whatsapp', value)}
+            placeholder="WhatsApp contact"
+            placeholderTextColor={colors.secondary}
+            keyboardType="phone-pad"
+          />
+
+          <Text style={[styles.inputLabel, { color: colors.text }]}>Category</Text>
+          {categoryOptions.length > 0 ? (
+            <View style={[styles.pickerContainer, { borderColor: colors.border }]}>
+              <Picker
+                selectedValue={formData.category}
+                onValueChange={(value) => onChange('category', value)}
+                style={[styles.picker, { color: colors.text }]}
+                dropdownIconColor={colors.text}
+              >
+                {categoryOptions.map((option) => (
+                  <Picker.Item key={option} label={option} value={option} />
+                ))}
+              </Picker>
+            </View>
+          ) : (
+            <TextInput
+              style={[styles.textInput, { borderColor: colors.border, color: colors.text }]}
+              value={formData.category}
+              onChangeText={(value) => onChange('category', value)}
+              placeholder="Category"
+              placeholderTextColor={colors.secondary}
+            />
+          )}
+
+          <Text style={[styles.inputLabel, { color: colors.text }]}>Pulse Code</Text>
+          <TextInput
+            style={[styles.textInput, { borderColor: colors.border, color: colors.text }]}
+            value={formData.pulseCode}
+            onChangeText={(value) => onChange('pulseCode', value)}
+            placeholder="Pulse code"
+            placeholderTextColor={colors.secondary}
+          />
+
           <Text style={[styles.inputLabel, { color: colors.text }]}>Status</Text>
           <TextInput
             style={[styles.textInput, { borderColor: colors.border, color: colors.text }]}
             value={formData.status}
             onChangeText={(value) => onChange('status', value)}
             placeholder="Current status"
+            placeholderTextColor={colors.secondary}
+          />
+
+          <Text style={[styles.inputLabel, { color: colors.text }]}>Current Status</Text>
+          <TextInput
+            style={[styles.textInput, { borderColor: colors.border, color: colors.text }]}
+            value={formData.currentStatus}
+            onChangeText={(value) => onChange('currentStatus', value)}
+            placeholder="Current status summary"
             placeholderTextColor={colors.secondary}
           />
 
@@ -106,17 +180,37 @@ const EditOrganizationModal: React.FC<Props> = ({
             placeholder="Assigned to"
             placeholderTextColor={colors.secondary}
           />
+
+          {previousSchools ? (
+            <View style={[styles.infoBox, { borderColor: colors.border, backgroundColor: colors.background }]}>
+              <Text style={[styles.infoTitle, { color: colors.text }]}>Previous Schools</Text>
+              <Text style={[styles.infoText, { color: colors.secondary }]}>{previousSchools}</Text>
+            </View>
+          ) : null}
         </ScrollView>
 
-        <View style={[styles.modalFooter, { borderTopColor: colors.border }]}> 
-          <TouchableOpacity
-            style={[styles.submitButton, { backgroundColor: colors.primary }]}
-            onPress={onSubmit}
-            activeOpacity={0.85}
-          >
-            <Icon name="save" size={20} color="#fff" />
-            <Text style={styles.submitText}>Save Changes</Text>
-          </TouchableOpacity>
+        <View style={[styles.modalFooter, { borderTopColor: colors.border }]}>
+          <View style={styles.footerActions}>
+            {onOpenExternalForm ? (
+              <TouchableOpacity
+                style={[styles.secondaryButton, { borderColor: colors.primary }]}
+                onPress={onOpenExternalForm}
+                activeOpacity={0.85}
+              >
+                <Icon name="open-in-new" size={20} color={colors.primary} />
+                <Text style={[styles.secondaryText, { color: colors.primary }]}>Open Full Form</Text>
+              </TouchableOpacity>
+            ) : null}
+
+            <TouchableOpacity
+              style={[styles.submitButton, { backgroundColor: colors.primary }]}
+              onPress={onSubmit}
+              activeOpacity={0.85}
+            >
+              <Icon name="save" size={20} color="#fff" />
+              <Text style={styles.submitText}>Save Changes</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </View>
@@ -165,6 +259,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 16,
   },
+  pickerContainer: {
+    borderWidth: 1,
+    borderRadius: 8,
+    marginBottom: 16,
+    overflow: 'hidden',
+  },
+  picker: {
+    height: 48,
+    width: '100%',
+  },
   textArea: {
     borderWidth: 1,
     borderRadius: 8,
@@ -179,18 +283,53 @@ const styles = StyleSheet.create({
     padding: 20,
     borderTopWidth: 1,
   },
+  footerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   submitButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 12,
     borderRadius: 8,
+    paddingHorizontal: 16,
   },
   submitText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
     marginLeft: 8,
+  },
+  secondaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginRight: 12,
+  },
+  secondaryText: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  infoBox: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+  },
+  infoTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  infoText: {
+    fontSize: 13,
+    lineHeight: 18,
   },
 });
 

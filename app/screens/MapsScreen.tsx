@@ -31,7 +31,12 @@ import type { Organization } from '../types/organization';
 const INITIAL_EDIT_FORM: EditFormState = {
   name: '',
   address: '',
+  contact: '',
+  whatsapp: '',
+  category: '',
+  pulseCode: '',
   status: '',
+  currentStatus: '',
   currentStatusDetails: '',
   assignee: '',
 };
@@ -77,6 +82,30 @@ const MapsScreen: React.FC = () => {
   } | null>(null);
   const [meetingData, setMeetingData] = useState<MeetingFormState>(INITIAL_MEETING_FORM);
   const [editFormData, setEditFormData] = useState<EditFormState>(INITIAL_EDIT_FORM);
+  const [formURL, setFormURL] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [previousSchoolsValue, setPreviousSchoolsValue] = useState<string | null>(null);
+
+  const extractFormEntryValue = useCallback((url: string | null, entryId: string): string => {
+    if (!url) {
+      return '';
+    }
+
+    const pattern = entryId.replace(/\./g, '\\.');
+    const regex = new RegExp(`${pattern}=([^&]*)`);
+    const match = url.match(regex);
+    return match ? decodeURIComponent(match[1]) : '';
+  }, []);
+
+  const categoryOptions = useMemo(() => {
+    const categories = new Set<string>();
+    organizations.forEach((org) => {
+      if (org.category && org.category.trim() !== '') {
+        categories.add(org.category.trim());
+      }
+    });
+    return Array.from(categories).sort((a, b) => a.localeCompare(b));
+  }, [organizations]);
 
   const handlePhonePress = useCallback((phone?: string) => {
     if (!phone) {
@@ -250,6 +279,7 @@ const MapsScreen: React.FC = () => {
           website: item.Website || '',
           status: item.Status || '',
           pulseCode: item['Pulse Code'] || '',
+          recordKey: item.Key || item.key || item['Record Key'] || '',
           numberOfStudents: item['Number of students'] || '',
           currentPublicationName: item['Current Publication name '] || '',
           decisionMakerName: item['Decision Maker Name'] || '',
@@ -270,6 +300,16 @@ const MapsScreen: React.FC = () => {
           beforeSchool: item['Before School'] || '',
           afterSchool: item['After School'] || '',
           addOns: item['Add-ons'] || '',
+          formUrl:
+            item['Form URL'] ||
+            item['Form Link'] ||
+            item['Edit Form Link'] ||
+            item['Edit Link'] ||
+            item.link ||
+            item.Link ||
+            '',
+          mapsUrl: item['Maps URL'] || item['Maps Link'] || item.mapsUrl || item['Map URL'] || '',
+          link: item.link || item.Link || '',
         };
         
         if (org.latitude !== 0 && org.longitude !== 0) {
@@ -375,20 +415,40 @@ const MapsScreen: React.FC = () => {
       return;
     }
 
+    const formLink = selectedOrg.formUrl || selectedOrg.link || null;
+    const categoryFromForm = extractFormEntryValue(formLink, 'entry.1748805668');
+    const resolvedCategory = categoryFromForm || selectedOrg.category || '';
+    const previousSchools = extractFormEntryValue(formLink, 'entry.1597701263');
+
+    setFormURL(formLink);
+    setSelectedCategory(resolvedCategory);
+    setPreviousSchoolsValue(previousSchools ? previousSchools : null);
+
     setEditFormData({
       name: selectedOrg.name,
       address: selectedOrg.address,
+      contact: selectedOrg.contact ?? '',
+      whatsapp: selectedOrg.whatsapp ?? '',
+      category: resolvedCategory,
+      pulseCode: selectedOrg.pulseCode ?? '',
       status: selectedOrg.status ?? '',
+      currentStatus: selectedOrg.currentStatus ?? '',
       currentStatusDetails: selectedOrg.currentStatusDetails ?? '',
       assignee: selectedOrg.assignee ?? '',
     });
     setShowDetails(false);
     setShowEditForm(true);
-  }, [selectedOrg]);
+  }, [extractFormEntryValue, selectedOrg]);
 
-  const handleEditInputChange = useCallback((field: keyof EditFormState, value: string) => {
-    setEditFormData((prev) => ({ ...prev, [field]: value }));
-  }, []);
+  const handleEditInputChange = useCallback(
+    (field: keyof EditFormState, value: string) => {
+      setEditFormData((prev) => ({ ...prev, [field]: value }));
+      if (field === 'category') {
+        setSelectedCategory(value);
+      }
+    },
+    [setSelectedCategory]
+  );
 
   const handleMeetingInputChange = useCallback((field: keyof MeetingFormState, value: string) => {
     setMeetingData((prev) => ({ ...prev, [field]: value }));
@@ -397,10 +457,59 @@ const MapsScreen: React.FC = () => {
   const handleCancelEdit = useCallback(() => {
     setShowEditForm(false);
     setEditFormData(INITIAL_EDIT_FORM);
+    setFormURL(null);
+    setSelectedCategory('');
+    setPreviousSchoolsValue(null);
     setShowDetails(true);
   }, []);
 
-  const handleSaveEdit = useCallback(() => {
+  const submitCategoryUpdate = useCallback(
+    async (organization: Organization, category: string) => {
+      if (!category) {
+        return { success: true, skipped: true } as const;
+      }
+
+      const recordKey = organization.recordKey || organization.pulseCode || organization.id;
+      if (!recordKey) {
+        console.warn('Missing record key for organization update:', organization.id);
+        return { success: false, skipped: true } as const;
+      }
+
+      const mapsUrl =
+        organization.mapsUrl ||
+        `https://www.google.com/maps/search/?api=1&query=${organization.latitude},${organization.longitude}`;
+
+      const payload = {
+        key: recordKey,
+        mapurl: mapsUrl,
+        selectedCategory: category,
+      };
+
+      try {
+        const response = await fetch(
+          'https://script.google.com/macros/s/AKfycbxvc7ql3fN3MmfYmUuONI6TeDFfysalIA2sh_fAQC19xclIfEGoPXgf0fYXDTvYzvh39w/exec',
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          }
+        );
+
+        if (!response.ok) {
+          const errorMessage = await response.text();
+          throw new Error(errorMessage || 'Failed to update category');
+        }
+
+        return { success: true, skipped: false } as const;
+      } catch (error) {
+        console.error('Error updating category via script:', error);
+        return { success: false, skipped: false } as const;
+      }
+    },
+    []
+  );
+
+  const handleSaveEdit = useCallback(async () => {
     if (!selectedOrg) {
       Alert.alert('Error', 'No organization selected to edit.');
       return;
@@ -410,7 +519,12 @@ const MapsScreen: React.FC = () => {
       ...selectedOrg,
       name: editFormData.name,
       address: editFormData.address,
+      contact: editFormData.contact,
+      whatsapp: editFormData.whatsapp,
+      category: editFormData.category,
+      pulseCode: editFormData.pulseCode,
       status: editFormData.status,
+      currentStatus: editFormData.currentStatus,
       currentStatusDetails: editFormData.currentStatusDetails,
       assignee: editFormData.assignee,
     };
@@ -425,11 +539,23 @@ const MapsScreen: React.FC = () => {
       return prev.map((org) => (org.id === updatedOrg.id ? updatedOrg : org));
     });
     setSelectedOrg(updatedOrg);
+
+    const categoryToSubmit = selectedCategory || updatedOrg.category || '';
+    const result = await submitCategoryUpdate(updatedOrg, categoryToSubmit);
+
     setEditFormData(INITIAL_EDIT_FORM);
+    setFormURL(null);
+    setSelectedCategory('');
+    setPreviousSchoolsValue(null);
     setShowEditForm(false);
     setShowDetails(true);
-    Alert.alert('Success', 'Organization details updated.');
-  }, [editFormData, selectedOrg]);
+
+    if (result.success) {
+      Alert.alert('Success', result.skipped ? 'Organization details updated locally.' : 'Organization details updated.');
+    } else {
+      Alert.alert('Warning', 'Details saved locally, but updating the record remotely failed.');
+    }
+  }, [editFormData, selectedCategory, selectedOrg, submitCategoryUpdate]);
 
   const handleOpenDirections = useCallback(async () => {
     if (!selectedOrg) {
@@ -465,6 +591,44 @@ const MapsScreen: React.FC = () => {
       Alert.alert('Error', 'Failed to open directions.');
     }
   }, [selectedOrg]);
+
+  const handleOpenFormWithParams = useCallback(() => {
+    if (!formURL) {
+      Alert.alert('Form unavailable', 'No edit form link is available for this organization.');
+      return;
+    }
+
+    let updatedUrl = formURL;
+
+    if (selectedCategory) {
+      const encodedCategory = encodeURIComponent(selectedCategory);
+      if (updatedUrl.includes('entry.1748805668=')) {
+        updatedUrl = updatedUrl.replace(/entry\.1748805668=[^&]*/, `entry.1748805668=${encodedCategory}`);
+      } else {
+        updatedUrl += `${updatedUrl.includes('?') ? '&' : '?'}entry.1748805668=${encodedCategory}`;
+      }
+    }
+
+    if (editFormData.currentStatusDetails) {
+      const encodedDetails = encodeURIComponent(editFormData.currentStatusDetails);
+      if (updatedUrl.includes('entry.1523910384=')) {
+        const currentValue = updatedUrl.match(/entry\.1523910384=([^&]*)/);
+        if (currentValue) {
+          const newValue = `${currentValue[1]}%0A${encodedDetails}`;
+          updatedUrl = updatedUrl.replace(/entry\.1523910384=[^&]*/, `entry.1523910384=${newValue}`);
+        }
+      } else {
+        updatedUrl += `${updatedUrl.includes('?') ? '&' : '?'}entry.1523910384=${encodedDetails}`;
+      }
+    }
+
+    try {
+      Linking.openURL(updatedUrl);
+    } catch (error) {
+      console.error('Error opening edit form:', error);
+      Alert.alert('Error', 'Unable to open the edit form link.');
+    }
+  }, [editFormData.currentStatusDetails, formURL, selectedCategory]);
 
   const submitMeeting = async () => {
     if (!meetingData.title || !meetingData.scheduledTime) {
@@ -752,6 +916,9 @@ const MapsScreen: React.FC = () => {
         onClose={handleCancelEdit}
         onSubmit={handleSaveEdit}
         organizationName={selectedOrg?.name}
+        categoryOptions={categoryOptions}
+        onOpenExternalForm={formURL ? handleOpenFormWithParams : undefined}
+        previousSchools={previousSchoolsValue}
       />
 
       <MeetingRequestModal
