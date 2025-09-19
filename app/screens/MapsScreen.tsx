@@ -109,6 +109,32 @@ const MapsScreen: React.FC = () => {
     setShowDetails(true);
   }, []);
 
+  const renderDetailRow = useCallback(
+    (iconName: string, content: string) => (
+      <View style={styles.detailRow}>
+        <Icon name={iconName} size={20} color={theme.colors.primary} />
+        <Text style={[styles.detailText, { color: theme.colors.text }]}>{content}</Text>
+      </View>
+    ),
+    [theme.colors.primary, theme.colors.text],
+  );
+
+  const locationText = useMemo(() => {
+    if (!selectedOrg) {
+      return '';
+    }
+
+    const parts = [selectedOrg.city, selectedOrg.state].filter(
+      (part): part is string => !!part && part.trim().length > 0,
+    );
+
+    if (parts.length === 0) {
+      return '';
+    }
+
+    return parts.join(', ');
+  }, [selectedOrg]);
+
   useEffect(() => {
     if (user?.role === 'admin') {
       getLiveTrackingUsers();
@@ -750,6 +776,44 @@ const MapsScreen: React.FC = () => {
                     Start: {selectedOrg.startDate} at {selectedOrg.startTime}
                   </Text>
                 </View>
+            <ScrollView style={styles.modalBody}>
+              {selectedOrg && (
+                <>
+                  {renderDetailRow('business', selectedOrg.category)}
+                  {renderDetailRow('location-city', locationText || `${selectedOrg.city}, ${selectedOrg.state}`)}
+                  {selectedOrg.contact?.trim() ? renderDetailRow('phone', selectedOrg.contact) : null}
+                  {selectedOrg.description?.trim() ? renderDetailRow('info', selectedOrg.description) : null}
+                  {selectedOrg.type?.trim() ? renderDetailRow('category', `Type: ${selectedOrg.type}`) : null}
+                  {selectedOrg.ratings?.trim() ? renderDetailRow('star', `Ratings: ${selectedOrg.ratings}`) : null}
+                  {selectedOrg.website?.trim() ? renderDetailRow('web', `Website: ${selectedOrg.website}`) : null}
+                  {selectedOrg.numberOfStudents?.trim()
+                    ? renderDetailRow('school', `Students: ${selectedOrg.numberOfStudents}`)
+                    : null}
+                  {selectedOrg.decisionMakerName?.trim()
+                    ? renderDetailRow('person', `Decision Maker: ${selectedOrg.decisionMakerName}`)
+                    : null}
+                  {selectedOrg.phoneDM?.trim() ? renderDetailRow('phone', `DM Phone: ${selectedOrg.phoneDM}`) : null}
+                  {selectedOrg.whatsapp?.trim() ? renderDetailRow('chat', `WhatsApp: ${selectedOrg.whatsapp}`) : null}
+                  {selectedOrg.currentStatus?.trim()
+                    ? renderDetailRow('update', `Current Status: ${selectedOrg.currentStatus}`)
+                    : null}
+                  {selectedOrg.currentStatusDetails?.trim()
+                    ? renderDetailRow('description', `Status Details: ${selectedOrg.currentStatusDetails}`)
+                    : null}
+                  {selectedOrg.beforeSchool?.trim()
+                    ? renderDetailRow('watch-later', `Before School: ${selectedOrg.beforeSchool}`)
+                    : null}
+                  {selectedOrg.afterSchool?.trim()
+                    ? renderDetailRow('event-available', `After School: ${selectedOrg.afterSchool}`)
+                    : null}
+                  {selectedOrg.addOns?.trim() ? renderDetailRow('extension', `Add-ons: ${selectedOrg.addOns}`) : null}
+                  {selectedOrg.eventTitle?.trim()
+                    ? renderDetailRow('event', `Event: ${selectedOrg.eventTitle}`)
+                    : null}
+                  {selectedOrg.startDate?.trim() && selectedOrg.startTime?.trim()
+                    ? renderDetailRow('schedule', `Start: ${selectedOrg.startDate} at ${selectedOrg.startTime}`)
+                    : null}
+                </>
               )}
             </ScrollView>
 
@@ -902,13 +966,13 @@ const styles = StyleSheet.create({
   },
   searchContainer: {
     paddingHorizontal: 16,
-    paddingVertical: 6,
+    paddingVertical: 0,
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 4,
     borderRadius: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
