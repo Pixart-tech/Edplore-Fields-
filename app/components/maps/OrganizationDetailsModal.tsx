@@ -79,6 +79,22 @@ const OrganizationDetailsModal: React.FC<Props> = ({
       });
     }
 
+    if (normalize(organization.status)) {
+      entries.push({ key: 'status', icon: 'assignment', text: `Status: ${organization.status}` });
+    }
+
+    if (normalize(organization.currentPublicationName)) {
+      entries.push({
+        key: 'currentPublication',
+        icon: 'menu-book',
+        text: `Current Publication: ${organization.currentPublicationName}`,
+      });
+    }
+
+    if (normalize(organization.pulseCode)) {
+      entries.push({ key: 'pulseCode', icon: 'qr-code', text: `Pulse Code: ${organization.pulseCode}` });
+    }
+
     if (normalize(organization.description)) {
       entries.push({ key: 'description', icon: 'info', text: organization.description! });
     }
@@ -132,6 +148,10 @@ const OrganizationDetailsModal: React.FC<Props> = ({
         text: `WhatsApp: ${organization.whatsapp}`,
         onPress: () => onPressWhatsApp(organization.whatsapp),
       });
+    }
+
+    if (normalize(organization.guests)) {
+      entries.push({ key: 'guests', icon: 'group', text: `Guests: ${organization.guests}` });
     }
 
     if (normalize(organization.currentStatus)) {
