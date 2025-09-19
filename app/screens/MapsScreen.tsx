@@ -68,6 +68,32 @@ const MapsScreen: React.FC = () => {
     setShowDetails(true);
   }, []);
 
+  const renderDetailRow = useCallback(
+    (iconName: string, content: string) => (
+      <View style={styles.detailRow}>
+        <Icon name={iconName} size={20} color={theme.colors.primary} />
+        <Text style={[styles.detailText, { color: theme.colors.text }]}>{content}</Text>
+      </View>
+    ),
+    [theme.colors.primary, theme.colors.text],
+  );
+
+  const locationText = useMemo(() => {
+    if (!selectedOrg) {
+      return '';
+    }
+
+    const parts = [selectedOrg.city, selectedOrg.state].filter(
+      (part): part is string => !!part && part.trim().length > 0,
+    );
+
+    if (parts.length === 0) {
+      return '';
+    }
+
+    return parts.join(', ');
+  }, [selectedOrg]);
+
   useEffect(() => {
     if (user?.role === 'admin') {
       getLiveTrackingUsers();
@@ -581,118 +607,44 @@ const MapsScreen: React.FC = () => {
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={{ padding: 20 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-                <Icon name="business" size={20} color={theme.colors.primary} />
-                <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
-                  {selectedOrg?.category}
-                </Text>
-              </View>
-
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-                <Icon name="location-city" size={20} color={theme.colors.primary} />
-                <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
-                  {selectedOrg?.city}, {selectedOrg?.state}
-                </Text>
-              </View>
-
-              {selectedOrg?.contact && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-                  <Icon name="phone" size={20} color={theme.colors.primary} />
-                  <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
-                    {selectedOrg.contact}
-                  </Text>
-                </View>
-              )}
-
-              {selectedOrg?.description && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-                  <Icon name="info" size={20} color={theme.colors.primary} />
-                  <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
-                    {selectedOrg.description}
-                  </Text>
-                </View>
-              )}
-
-              {selectedOrg?.type && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-                  <Icon name="category" size={20} color={theme.colors.primary} />
-                  <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
-                    Type: {selectedOrg.type}
-                  </Text>
-                </View>
-              )}
-
-              {selectedOrg?.ratings && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-                  <Icon name="star" size={20} color={theme.colors.primary} />
-                  <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
-                    Ratings: {selectedOrg.ratings}
-                  </Text>
-                </View>
-              )}
-
-              {selectedOrg?.website && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-                  <Icon name="web" size={20} color={theme.colors.primary} />
-                  <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
-                    Website: {selectedOrg.website}
-                  </Text>
-                </View>
-              )}
-
-              {selectedOrg?.numberOfStudents && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-                  <Icon name="school" size={20} color={theme.colors.primary} />
-                  <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
-                    Students: {selectedOrg.numberOfStudents}
-                  </Text>
-                </View>
-              )}
-
-              {selectedOrg?.decisionMakerName && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-                  <Icon name="person" size={20} color={theme.colors.primary} />
-                  <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
-                    Decision Maker: {selectedOrg.decisionMakerName}
-                  </Text>
-                </View>
-              )}
-
-              {selectedOrg?.phoneDM && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-                  <Icon name="phone" size={20} color={theme.colors.primary} />
-                  <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
-                    DM Phone: {selectedOrg.phoneDM}
-                  </Text>
-                </View>
-              )}
-
-              {selectedOrg?.whatsapp && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-                  <Icon name="chat" size={20} color={theme.colors.primary} />
-                  <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
-                    WhatsApp: {selectedOrg.whatsapp}
-                  </Text>
-                </View>
-              )}
-
-              {selectedOrg?.eventTitle && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-                  <Icon name="event" size={20} color={theme.colors.primary} />
-                  <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
-                    Event: {selectedOrg.eventTitle}
-                  </Text>
-                </View>
-              )}
-
-              {selectedOrg?.startDate && selectedOrg?.startTime && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-                  <Icon name="schedule" size={20} color={theme.colors.primary} />
-                  <Text style={{ marginLeft: 12, fontSize: 16, flex: 1, color: theme.colors.text }}>
-                    Start: {selectedOrg.startDate} at {selectedOrg.startTime}
-                  </Text>
-                </View>
+            <ScrollView style={styles.modalBody}>
+              {selectedOrg && (
+                <>
+                  {renderDetailRow('business', selectedOrg.category)}
+                  {renderDetailRow('location-city', locationText || `${selectedOrg.city}, ${selectedOrg.state}`)}
+                  {selectedOrg.contact?.trim() ? renderDetailRow('phone', selectedOrg.contact) : null}
+                  {selectedOrg.description?.trim() ? renderDetailRow('info', selectedOrg.description) : null}
+                  {selectedOrg.type?.trim() ? renderDetailRow('category', `Type: ${selectedOrg.type}`) : null}
+                  {selectedOrg.ratings?.trim() ? renderDetailRow('star', `Ratings: ${selectedOrg.ratings}`) : null}
+                  {selectedOrg.website?.trim() ? renderDetailRow('web', `Website: ${selectedOrg.website}`) : null}
+                  {selectedOrg.numberOfStudents?.trim()
+                    ? renderDetailRow('school', `Students: ${selectedOrg.numberOfStudents}`)
+                    : null}
+                  {selectedOrg.decisionMakerName?.trim()
+                    ? renderDetailRow('person', `Decision Maker: ${selectedOrg.decisionMakerName}`)
+                    : null}
+                  {selectedOrg.phoneDM?.trim() ? renderDetailRow('phone', `DM Phone: ${selectedOrg.phoneDM}`) : null}
+                  {selectedOrg.whatsapp?.trim() ? renderDetailRow('chat', `WhatsApp: ${selectedOrg.whatsapp}`) : null}
+                  {selectedOrg.currentStatus?.trim()
+                    ? renderDetailRow('update', `Current Status: ${selectedOrg.currentStatus}`)
+                    : null}
+                  {selectedOrg.currentStatusDetails?.trim()
+                    ? renderDetailRow('description', `Status Details: ${selectedOrg.currentStatusDetails}`)
+                    : null}
+                  {selectedOrg.beforeSchool?.trim()
+                    ? renderDetailRow('watch-later', `Before School: ${selectedOrg.beforeSchool}`)
+                    : null}
+                  {selectedOrg.afterSchool?.trim()
+                    ? renderDetailRow('event-available', `After School: ${selectedOrg.afterSchool}`)
+                    : null}
+                  {selectedOrg.addOns?.trim() ? renderDetailRow('extension', `Add-ons: ${selectedOrg.addOns}`) : null}
+                  {selectedOrg.eventTitle?.trim()
+                    ? renderDetailRow('event', `Event: ${selectedOrg.eventTitle}`)
+                    : null}
+                  {selectedOrg.startDate?.trim() && selectedOrg.startTime?.trim()
+                    ? renderDetailRow('schedule', `Start: ${selectedOrg.startDate} at ${selectedOrg.startTime}`)
+                    : null}
+                </>
               )}
             </ScrollView>
 
