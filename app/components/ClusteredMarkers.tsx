@@ -163,9 +163,13 @@ const ClusteredMarkersComponent: React.FC<ClusteredMarkersProps> = ({ organizati
         }
 
         if (properties.organization) {
+          const organizationKey =
+            properties.organization.mapsUrl ??
+            `${properties.organization.name}-${latitude}-${longitude}`;
+
           return (
             <OrganizationMarker
-              key={`org-${properties.organization.id}`}
+              key={`org-${organizationKey}`}
               org={properties.organization}
               onPress={onMarkerPress}
             />
