@@ -1,4 +1,12 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+  useCallback,
+  useRef,
+} from 'react';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -54,6 +62,9 @@ if (!GOOGLE_API_KEY) {
 const DEFAULT_HISTORY_KEY = 'locationHistory';
 const DEFAULT_TOTAL_KEY = 'totalDistance';
 const HISTORY_LIMIT = 1000;
+const TRACKING_MODE_KEY = 'trackingMode';
+
+type TrackingMode = 'background' | 'foreground';
 
 interface StoredUser {
   id?: string;
@@ -74,6 +85,9 @@ const getStorageKeysForUser = (userId: string | null) => ({
   history: userId ? `${DEFAULT_HISTORY_KEY}_${userId}` : DEFAULT_HISTORY_KEY,
   total: userId ? `${DEFAULT_TOTAL_KEY}_${userId}` : DEFAULT_TOTAL_KEY,
 });
+
+const getTrackingModeKeyForUser = (userId: string | null) =>
+  userId ? `${TRACKING_MODE_KEY}_${userId}` : TRACKING_MODE_KEY;
 
 const getDrivingDistanceKm = async (
   originLat: number,
@@ -242,6 +256,47 @@ const storeLiveTrackingData = async (userId: string, locationData: LocationData)
   }
 };
 
+const persistLocationToFirestore = async (
+  userId: string,
+  userName: string | undefined,
+  locationData: LocationData,
+  isLiveTrackingActive: boolean
+): Promise<void> => {
+  try {
+    const historyDoc = {
+      user_id: userId,
+      latitude: locationData.latitude,
+      longitude: locationData.longitude,
+      timestamp: locationData.timestamp,
+      accuracy: locationData.accuracy ?? null,
+      created_at: serverTimestamp(),
+      is_live_tracking: isLiveTrackingActive,
+    };
+
+    await addDoc(collection(db, 'locations'), historyDoc);
+
+    if (isLiveTrackingActive) {
+      await setDoc(
+        fsDoc(db, 'live_tracking', userId),
+        {
+          user_id: userId,
+          name: userName,
+          latitude: locationData.latitude,
+          longitude: locationData.longitude,
+          accuracy: locationData.accuracy ?? null,
+          last_update: serverTimestamp(),
+          timestamp: locationData.timestamp,
+        },
+        { merge: true }
+      );
+
+      await storeLiveTrackingData(userId, locationData);
+    }
+  } catch (persistErr) {
+    console.error('Failed to persist location to Firestore:', persistErr);
+  }
+};
+
 interface LocationData {
   latitude: number;
   longitude: number;
@@ -331,14 +386,14 @@ interface LocationContextType {
   currentLocation: LocationData | null;
   isTracking: boolean;
   totalDistance: number;
-  startTracking: () => Promise<void>;
+  startTracking: () => Promise<TrackingMode>;
   stopTracking: () => Promise<void>;
   getLocationHistory: () => Promise<LocationData[]>;
   // Unified tracking (combines regular and live tracking)
-  startUnifiedTracking: () => Promise<void>;
+  startUnifiedTracking: () => Promise<TrackingMode>;
   stopUnifiedTracking: () => Promise<void>;
   // Live tracking features (legacy)
-  startLiveTracking: () => Promise<void>;
+  startLiveTracking: () => Promise<TrackingMode>;
   stopLiveTracking: () => Promise<void>;
   isLiveTracking: boolean;
   liveUsers: Array<{
@@ -389,40 +444,13 @@ TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
           continue;
         }
 
-        // Persist to Firestore (locations history and optional live tracking doc)
-        try {
-          const historyDoc = {
-            user_id: storedUser.id,
-            latitude: locationData.latitude,
-            longitude: locationData.longitude,
-            timestamp: locationData.timestamp,
-            accuracy: locationData.accuracy ?? null,
-            created_at: serverTimestamp(),
-            is_live_tracking: true,
-          };
-
-          await addDoc(collection(db, 'locations'), historyDoc);
-
-          // Update live tracking document if active
-          const liveStatus = await AsyncStorage.getItem(`liveTracking_${storedUser.id}`);
-          if (liveStatus === 'true') {
-            await setDoc(
-              fsDoc(db, 'live_tracking', storedUser.id),
-              {
-                user_id: storedUser.id,
-                name: storedUser.name,
-                latitude: locationData.latitude,
-                longitude: locationData.longitude,
-                accuracy: locationData.accuracy ?? null,
-                last_update: serverTimestamp(),
-                timestamp: locationData.timestamp,
-              },
-              { merge: true }
-            );
-          }
-        } catch (persistErr) {
-          console.error('Failed to persist location to Firestore:', persistErr);
-        }
+        const liveStatus = await AsyncStorage.getItem(`liveTracking_${storedUser.id}`);
+        await persistLocationToFirestore(
+          storedUser.id,
+          storedUser.name,
+          locationData,
+          liveStatus === 'true'
+        );
       } catch (err) {
         console.error('Error processing location:', err);
       }
@@ -436,6 +464,7 @@ interface LocationProviderProps {
 }
 
 export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) => {
+  const { user } = useAuth();
   const [currentLocation, setCurrentLocation] = useState<LocationData | null>(null);
   const [isTracking, setIsTracking] = useState(false);
   const [totalDistance, setTotalDistance] = useState(0);
@@ -448,8 +477,19 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
     lastUpdate: number;
   }>>([]);
   const [liveTrackingInterval, setLiveTrackingInterval] = useState<ReturnType<typeof setInterval> | null>(null);
-  
-  const { user } = useAuth();
+  const [, setTrackingMode] = useState<TrackingMode | null>(null);
+
+  const foregroundWatcherRef = useRef<Location.LocationSubscription | null>(null);
+  const latestUserRef = useRef(user);
+  const isLiveTrackingRef = useRef(isLiveTracking);
+
+  useEffect(() => {
+    latestUserRef.current = user;
+  }, [user]);
+
+  useEffect(() => {
+    isLiveTrackingRef.current = isLiveTracking;
+  }, [isLiveTracking]);
 
   useEffect(() => {
     const listener: DistanceUpdateListener = (newTotal: number) => {
@@ -466,18 +506,32 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
   }, [user]);
 
   const checkTrackingStatus = async () => {
-    if (!user) return;
-    
+    if (!user?.id) return;
+
     try {
       const trackingStatus = await AsyncStorage.getItem(`tracking_${user.id}`);
-      if (trackingStatus === 'true') {
-        const isTaskRunning = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
-        setIsTracking(isTaskRunning);
-        
-        // Also check live tracking status
-        const liveStatus = await AsyncStorage.getItem(`liveTracking_${user.id}`);
-        setIsLiveTracking(liveStatus === 'true' && isTaskRunning);
+      if (trackingStatus !== 'true') {
+        setIsTracking(false);
+        setIsLiveTracking(false);
+        setTrackingMode(null);
+        return;
       }
+
+      const modeKey = getTrackingModeKeyForUser(user.id);
+      const storedMode = (await AsyncStorage.getItem(modeKey)) as TrackingMode | null;
+      let backgroundRunning = false;
+
+      if (!storedMode || storedMode === 'background') {
+        backgroundRunning = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
+      }
+
+      const isForegroundMode = storedMode === 'foreground';
+      setTrackingMode(storedMode ?? (backgroundRunning ? 'background' : null));
+      setIsTracking(isForegroundMode ? false : backgroundRunning);
+
+      const liveStatus = await AsyncStorage.getItem(`liveTracking_${user.id}`);
+      const liveActive = liveStatus === 'true' && (isForegroundMode ? false : backgroundRunning);
+      setIsLiveTracking(liveActive);
     } catch (error) {
       console.error('Error checking tracking status:', error);
     }
@@ -572,53 +626,169 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
     await refreshTotalDistanceFromFirebase();
   };
 
-  const startTracking = async (): Promise<void> => {
-    if (!user) return;
+  const stopForegroundWatcher = useCallback((): void => {
+    if (foregroundWatcherRef.current) {
+      try {
+        foregroundWatcherRef.current.remove();
+      } catch (error) {
+        console.error('Error removing foreground location watcher:', error);
+      } finally {
+        foregroundWatcherRef.current = null;
+      }
+    }
+  }, []);
 
-    try {
+  const handleForegroundLocationUpdate = useCallback(
+    async (location: Location.LocationObject) => {
+      const locationData: LocationData = {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+        timestamp: location.timestamp,
+        accuracy: location.coords.accuracy || undefined,
+      };
+
+      setCurrentLocation(locationData);
+
+      try {
+        await processLocationForDistance(locationData, latestUserRef.current?.id ?? null);
+      } catch (error) {
+        console.error('Error processing foreground location:', error);
+      }
+
+      const activeUser = latestUserRef.current;
+      if (activeUser?.id) {
+        try {
+          await persistLocationToFirestore(
+            activeUser.id,
+            activeUser.name,
+            locationData,
+            isLiveTrackingRef.current ?? false
+          );
+        } catch (error) {
+          console.error('Error persisting foreground location:', error);
+        }
+      }
+    },
+    []
+  );
+
+  const startLocationServices = useCallback(
+    async (userId: string): Promise<TrackingMode> => {
       const { status: foregroundStatus } = await Location.requestForegroundPermissionsAsync();
       if (foregroundStatus !== 'granted') {
         throw new Error('Foreground location permission not granted');
       }
 
       const { status: backgroundStatus } = await Location.requestBackgroundPermissionsAsync();
-      if (backgroundStatus !== 'granted') {
-        console.warn('Background location permission not granted, tracking may be limited');
+
+      if (backgroundStatus === 'granted') {
+        stopForegroundWatcher();
+
+        const alreadyStarted = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
+        if (!alreadyStarted) {
+          await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
+            accuracy: Location.Accuracy.High,
+            timeInterval: 15000,
+            distanceInterval: 10,
+            foregroundService: {
+              notificationTitle: 'Location Tracking Active',
+              notificationBody: 'Tracking your location for distance calculation',
+              notificationColor: '#4CAF50',
+            },
+          });
+        }
+
+        const confirmStarted = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
+        if (!confirmStarted) {
+          throw new Error('Background location updates failed to start');
+        }
+
+        setTrackingMode('background');
+        await AsyncStorage.setItem(getTrackingModeKeyForUser(userId), 'background');
+        return 'background';
       }
 
-      await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-        accuracy: Location.Accuracy.High,
-        timeInterval: 15000, // 15 seconds (more frequent)
-        distanceInterval: 10, // 10 meters (more sensitive)
-        foregroundService: {
-          notificationTitle: 'Location Tracking Active',
-          notificationBody: 'Tracking your location for distance calculation',
-          notificationColor: '#4CAF50',
-        },
-      });
+      console.warn('Background location permission not granted, falling back to foreground tracking');
+      stopForegroundWatcher();
 
-      await AsyncStorage.setItem(`tracking_${user.id}`, 'true');
+      const subscription = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.High,
+          timeInterval: 15000,
+          distanceInterval: 10,
+        },
+        async (locationUpdate) => {
+          try {
+            await handleForegroundLocationUpdate(locationUpdate);
+          } catch (error) {
+            console.error('Error handling foreground location update:', error);
+          }
+        }
+      );
+
+      foregroundWatcherRef.current = subscription;
+      setTrackingMode('foreground');
+      await AsyncStorage.setItem(getTrackingModeKeyForUser(userId), 'foreground');
+      return 'foreground';
+    },
+    [handleForegroundLocationUpdate, stopForegroundWatcher]
+  );
+
+  const startTracking = async (): Promise<TrackingMode> => {
+    if (!user?.id) {
+      throw new Error('User not authenticated for tracking');
+    }
+
+    try {
+      const mode = await startLocationServices(user.id);
+      try {
+        await AsyncStorage.setItem(`tracking_${user.id}`, 'true');
+      } catch (storageError) {
+        console.error('Error updating tracking flag in storage:', storageError);
+      }
+
       setIsTracking(true);
+      return mode;
     } catch (error) {
       console.error('Error starting location tracking:', error);
+      try {
+        await AsyncStorage.removeItem(getTrackingModeKeyForUser(user.id));
+      } catch (storageError) {
+        console.error('Error clearing tracking mode flag:', storageError);
+      }
+      setTrackingMode(null);
       throw error;
     }
   };
 
   const stopTracking = async (): Promise<void> => {
-    if (!user) return;
+    if (!user?.id) return;
+
+    let stopError: unknown = null;
 
     try {
       const hasStarted = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
       if (hasStarted) {
         await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
       }
-      
-      await AsyncStorage.setItem(`tracking_${user.id}`, 'false');
-      setIsTracking(false);
     } catch (error) {
-      console.error('Error stopping location tracking:', error);
-      throw error;
+      console.error('Error stopping background location tracking:', error);
+      stopError = error;
+    }
+
+    stopForegroundWatcher();
+    setIsTracking(false);
+    setTrackingMode(null);
+
+    try {
+      await AsyncStorage.setItem(`tracking_${user.id}`, 'false');
+      await AsyncStorage.removeItem(getTrackingModeKeyForUser(user.id));
+    } catch (storageError) {
+      console.error('Error updating tracking storage flags:', storageError);
+    }
+
+    if (stopError) {
+      throw stopError;
     }
   };
 
@@ -640,35 +810,30 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
   };
 
   // Unified tracking function that combines both regular and live tracking
-  const startUnifiedTracking = async (): Promise<void> => {
-    if (!user) return;
+  const startUnifiedTracking = async (): Promise<TrackingMode> => {
+    if (!user?.id) {
+      throw new Error('User not authenticated for tracking');
+    }
+
+    isLiveTrackingRef.current = true;
+
+    let mode: TrackingMode;
+    try {
+      mode = await startLocationServices(user.id);
+    } catch (error) {
+      isLiveTrackingRef.current = false;
+      try {
+        await AsyncStorage.removeItem(getTrackingModeKeyForUser(user.id));
+      } catch (storageError) {
+        console.error('Error clearing tracking mode flag:', storageError);
+      }
+      console.error('Error starting unified tracking:', error);
+      throw error;
+    }
 
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        throw new Error('Location permission not granted');
-      }
-
-      const { status: backgroundStatus } = await Location.requestBackgroundPermissionsAsync();
-      if (backgroundStatus !== 'granted') {
-        console.warn('Background location permission not granted, tracking may be limited');
-      }
-
-      // Start background location tracking for distance calculation
-      await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-        accuracy: Location.Accuracy.High, // Use high accuracy for better distance calculation
-        timeInterval: 15000, // 15 seconds (more frequent updates)
-        distanceInterval: 10, // 10 meters (capture smaller movements)
-        foregroundService: {
-          notificationTitle: 'Location Tracking Active',
-          notificationBody: 'Your location is being tracked for distance calculation',
-          notificationColor: '#4CAF50',
-        },
-      });
-
-      // Mark live tracking active in Firestore for admin visibility
       await setDoc(
-        fsDoc(db, 'live_tracking', user.id!),
+        fsDoc(db, 'live_tracking', user.id),
         {
           user_id: user.id,
           name: user.name,
@@ -681,112 +846,98 @@ export const LocationProvider: React.FC<LocationProviderProps> = ({ children }) 
         },
         { merge: true }
       );
+    } catch (error) {
+      console.error('Failed to mark live tracking active in Firestore:', error);
+    }
 
-      // Start sending location updates every 60 seconds for live tracking
-      const interval = setInterval(async () => {
-        try {
-          const location = await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.High,
-          });
+    if (liveTrackingInterval) {
+      clearInterval(liveTrackingInterval);
+    }
 
-          const locationData: LocationData = {
-            latitude: location.coords.latitude,
-            longitude: location.coords.longitude,
-            timestamp: location.timestamp,
-            accuracy: location.coords.accuracy || undefined,
-          };
+    const interval = setInterval(async () => {
+      try {
+        const location = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.High,
+        });
 
-          await processLocationForDistance(locationData, user?.id ?? null);
+        const locationData: LocationData = {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+          timestamp: location.timestamp,
+          accuracy: location.coords.accuracy || undefined,
+        };
 
-          setCurrentLocation(locationData);
+        await processLocationForDistance(locationData, latestUserRef.current?.id ?? null);
+        setCurrentLocation(locationData);
 
-          // Update live tracking doc and save to locations collection
-          try {
-            
-            await setDoc(
-              fsDoc(db, 'live_tracking', user.id!),
-              {
-                latitude: locationData.latitude,
-                longitude: locationData.longitude,
-                accuracy: locationData.accuracy ?? null,
-                last_update: serverTimestamp(),
-                timestamp: locationData.timestamp,
-              },
-              { merge: true }
-            );
-            
-            // Store in new Firebase structure
-            if (user.id) {
-              await storeLiveTrackingData(user.id, locationData);
-            }
-            
-            // Keep legacy collection for backward compatibility
-            await addDoc(collection(db, 'locations'), {
-              user_id: user.id,
-              latitude: locationData.latitude,
-              longitude: locationData.longitude,
-              timestamp: locationData.timestamp,
-              accuracy: locationData.accuracy ?? null,
-              created_at: serverTimestamp(),
-              is_live_tracking: true,
-            });
-          } catch (err) {
-            console.error('Failed to update Firestore live location:', err);
-          }
-
-        } catch (error) {
-          console.error('Error getting live location:', error);
+        const activeUser = latestUserRef.current;
+        if (activeUser?.id) {
+          await persistLocationToFirestore(activeUser.id, activeUser.name, locationData, true);
         }
-      }, 60000); // Update every 60 seconds (1 minute)
+      } catch (error) {
+        console.error('Error getting live location:', error);
+      }
+    }, 60000);
 
-      setLiveTrackingInterval(interval);
-      setIsTracking(true);
-      setIsLiveTracking(true);
+    setLiveTrackingInterval(interval);
+    setIsTracking(true);
+    setIsLiveTracking(true);
+
+    try {
       await AsyncStorage.setItem(`tracking_${user.id}`, 'true');
       await AsyncStorage.setItem(`liveTracking_${user.id}`, 'true');
-
-    } catch (error) {
-      console.error('Error starting unified tracking:', error);
-      throw error;
+    } catch (storageError) {
+      console.error('Error updating tracking flags in storage:', storageError);
     }
+
+    return mode;
   };
 
   const stopUnifiedTracking = async (): Promise<void> => {
-    if (!user) return;
+    if (!user?.id) return;
+
+    let capturedError: unknown = null;
 
     try {
-      // Stop background location tracking
-      const hasStarted = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
-      if (hasStarted) {
-        await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
-      }
+      await stopTracking();
+    } catch (error) {
+      capturedError = error;
+    }
 
-      // Mark live tracking inactive in Firestore
+    try {
       await setDoc(
-        fsDoc(db, 'live_tracking', user.id!),
+        fsDoc(db, 'live_tracking', user.id),
         { is_active: false, stopped_at: serverTimestamp() },
         { merge: true }
       );
-
-      // Clear interval
-      if (liveTrackingInterval) {
-        clearInterval(liveTrackingInterval);
-        setLiveTrackingInterval(null);
-      }
-
-      setIsTracking(false);
-      setIsLiveTracking(false);
-      await AsyncStorage.setItem(`tracking_${user.id}`, 'false');
-      await AsyncStorage.setItem(`liveTracking_${user.id}`, 'false');
-
     } catch (error) {
-      console.error('Error stopping unified tracking:', error);
-      throw error;
+      console.error('Error marking live tracking inactive:', error);
+      if (!capturedError) {
+        capturedError = error;
+      }
+    }
+
+    if (liveTrackingInterval) {
+      clearInterval(liveTrackingInterval);
+      setLiveTrackingInterval(null);
+    }
+
+    setIsLiveTracking(false);
+    isLiveTrackingRef.current = false;
+
+    try {
+      await AsyncStorage.setItem(`liveTracking_${user.id}`, 'false');
+    } catch (storageError) {
+      console.error('Error updating live tracking storage flag:', storageError);
+    }
+
+    if (capturedError) {
+      throw capturedError;
     }
   };
 
   // Legacy functions for backward compatibility
-  const startLiveTracking = async (): Promise<void> => {
+  const startLiveTracking = async (): Promise<TrackingMode> => {
     return startUnifiedTracking();
   };
 
