@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
   RefreshControl,
   Platform,
 } from 'react-native';
@@ -16,6 +15,7 @@ import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
 import { useLocation } from '../../src/context/LocationContext';
 import { useTheme } from '../../src/context/ThemeContext';
 import Icon from '@expo/vector-icons/MaterialIcons';
+import { showErrorToast, showSuccessToast } from '../../src/utils/toast';
 
 interface StatCard {
   title: string;
@@ -110,29 +110,15 @@ const HomeScreen: React.FC = () => {
     try {
       if (isTracking) {
         await stopUnifiedTracking();
-        Alert.alert('Success', 'Location tracking stopped');
+        showSuccessToast('Success', 'Location tracking stopped');
       } else {
-        Alert.alert(
-          'Start Location Tracking',
-          'This will track your location for distance calculation. Continue?',
-          [
-            { text: 'Cancel', style: 'cancel' },
-            {
-              text: 'Start',
-              onPress: async () => {
-                try {
-                  await startUnifiedTracking();
-                  Alert.alert('Success', 'Location tracking started');
-                } catch (error) {
-                  Alert.alert('Error', 'Failed to start location tracking');
-                }
-              }
-            }
-          ]
-        );
+        await startUnifiedTracking();
+        showSuccessToast('Success', 'Location tracking started');
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to toggle location tracking');
+      const message =
+        error instanceof Error ? error.message : 'Failed to toggle location tracking';
+      showErrorToast('Error', message);
     }
   };
 

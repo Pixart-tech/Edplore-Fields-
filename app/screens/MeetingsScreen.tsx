@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   Modal,
   TextInput,
-  Alert,
   RefreshControl,
   Platform,
 } from 'react-native';
@@ -17,6 +16,7 @@ import { collection, getDocs, query, orderBy, where, doc, setDoc } from 'firebas
 import { useAuth } from '../../src/context/AuthContext';
 import { useTheme } from '../../src/context/ThemeContext';
 import Icon from '@expo/vector-icons/MaterialIcons';
+import { showErrorToast, showSuccessToast } from '../../src/utils/toast';
 
 interface Meeting {
   _id: string;
@@ -56,7 +56,7 @@ const MeetingsScreen: React.FC = () => {
       setMeetings(snap.docs.map(d => d.data() as any));
     } catch (error) {
       console.error('Error loading meetings:', error);
-      Alert.alert('Error', 'Failed to load meetings');
+      showErrorToast('Error', 'Failed to load meetings.');
     } finally {
       setLoading(false);
     }
@@ -78,14 +78,14 @@ const MeetingsScreen: React.FC = () => {
 
     try {
       await setDoc(doc(db, 'meetings', selectedMeeting._id), { status, notes: approvalNotes, updated_at: new Date() }, { merge: true });
-      Alert.alert('Success', `Meeting ${status} successfully`);
+      showSuccessToast('Meeting updated', `Meeting ${status} successfully.`);
       setShowApprovalModal(false);
       setApprovalNotes('');
       setSelectedMeeting(null);
       loadMeetings();
     } catch (error) {
       console.error('Error updating meeting:', error);
-      Alert.alert('Error', 'Failed to update meeting');
+      showErrorToast('Error', 'Failed to update meeting.');
     }
   };
 

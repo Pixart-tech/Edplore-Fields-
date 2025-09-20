@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Alert,
   Switch,
   Platform,
 } from 'react-native';
@@ -15,6 +14,12 @@ import { useAuth } from '../../src/context/AuthContext';
 import { useTheme } from '../../src/context/ThemeContext';
 import { useLocation } from '../../src/context/LocationContext';
 import Icon from '@expo/vector-icons/MaterialIcons';
+import {
+  showErrorToast,
+  showInfoToast,
+  showSuccessToast,
+  showWarningToast,
+} from '../../src/utils/toast';
 
 const ProfileScreen: React.FC = () => {
   const { user, logout } = useAuth();
@@ -24,51 +29,62 @@ const ProfileScreen: React.FC = () => {
   const [newName, setNewName] = useState(user?.name || '');
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [locationPermission, setLocationPermission] = useState(true);
+  const [logoutPending, setLogoutPending] = useState(false);
+  const logoutConfirmTimeout = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (logoutConfirmTimeout.current) {
+        clearTimeout(logoutConfirmTimeout.current);
+      }
+    };
+  }, []);
 
   const handleSaveName = async () => {
     if (!newName.trim()) {
-      Alert.alert('Error', 'Name cannot be empty');
+      showErrorToast('Invalid name', 'Name cannot be empty.');
       return;
     }
 
     try {
       // In a real app, you'd update the name on the backend
-      Alert.alert('Success', 'Name updated successfully');
+      showSuccessToast('Profile updated', 'Name updated successfully.');
       setEditingName(false);
     } catch (error) {
-      Alert.alert('Error', 'Failed to update name');
+      showErrorToast('Error', 'Failed to update name.');
     }
   };
 
   const handleResetPassword = () => {
-    Alert.alert(
-      'Reset Password',
-      'A password reset link will be sent to your email address.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Send Link', onPress: () => Alert.alert('Success', 'Password reset link sent!') },
-      ]
-    );
+    showInfoToast('Reset password', 'A reset link will be sent to your email address.');
   };
 
   const handleLogout = async () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            if (isTracking) {
-              await stopTracking();
-            }
-            await logout();
-          },
-        },
-      ]
-    );
+    if (!logoutPending) {
+      setLogoutPending(true);
+      showWarningToast('Confirm logout', 'Tap logout again to confirm.');
+      if (logoutConfirmTimeout.current) {
+        clearTimeout(logoutConfirmTimeout.current);
+      }
+      logoutConfirmTimeout.current = setTimeout(() => {
+        setLogoutPending(false);
+        logoutConfirmTimeout.current = null;
+      }, 4000);
+      return;
+    }
+
+    if (logoutConfirmTimeout.current) {
+      clearTimeout(logoutConfirmTimeout.current);
+      logoutConfirmTimeout.current = null;
+    }
+
+    setLogoutPending(false);
+
+    if (isTracking) {
+      await stopTracking();
+    }
+    await logout();
+    showSuccessToast('Logged out', 'You have been signed out.');
   };
 
   const SettingItem: React.FC<{
@@ -228,21 +244,23 @@ const ProfileScreen: React.FC = () => {
               icon="people"
               title="Manage Users"
               subtitle="View and manage user accounts"
-              onPress={() => Alert.alert('Coming Soon', 'User management feature is coming soon')}
+              onPress={() =>
+                showInfoToast('Coming soon', 'User management feature is coming soon.')
+              }
             />
             
             <SettingItem
               icon="analytics"
               title="Analytics"
               subtitle="View app usage statistics"
-              onPress={() => Alert.alert('Coming Soon', 'Analytics feature is coming soon')}
+              onPress={() => showInfoToast('Coming soon', 'Analytics feature is coming soon.')}
             />
             
             <SettingItem
               icon="settings"
               title="App Settings"
               subtitle="Configure application settings"
-              onPress={() => Alert.alert('Coming Soon', 'App settings feature is coming soon')}
+              onPress={() => showInfoToast('Coming soon', 'App settings feature is coming soon.')}
             />
           </View>
         )}
@@ -261,14 +279,18 @@ const ProfileScreen: React.FC = () => {
             icon="help"
             title="Help & Support"
             subtitle="Get help using the app"
-            onPress={() => Alert.alert('Help', 'Contact support at help@locationtracker.com')}
+            onPress={() =>
+              showInfoToast('Help', 'Contact support at help@locationtracker.com.')
+            }
           />
           
           <SettingItem
             icon="privacy-tip"
             title="Privacy Policy"
             subtitle="How we handle your data"
-            onPress={() => Alert.alert('Privacy Policy', 'Privacy policy details would be shown here')}
+            onPress={() =>
+              showInfoToast('Privacy Policy', 'Privacy policy details would be shown here.')
+            }
           />
         </View>
 

@@ -1,6 +1,11 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  showErrorToast,
+  showSuccessToast,
+  showWarningToast,
+} from '../src/utils/toast';
 
 const SimpleLogin: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -18,12 +23,12 @@ const SimpleLogin: React.FC = () => {
     const { email, password, name, phone } = formData;
 
     if (!email || !password) {
-      Alert.alert('Error', 'Please enter both email and password');
+      showWarningToast('Missing information', 'Please enter both email and password.');
       return;
     }
 
     if (!isLogin && (!name || !phone)) {
-      Alert.alert('Error', 'Please fill in all required fields');
+      showWarningToast('Missing information', 'Please fill in all required fields.');
       return;
     }
 
@@ -44,7 +49,7 @@ const SimpleLogin: React.FC = () => {
           };
           setLoggedInUser(adminUser);
           setLoggedIn(true);
-          Alert.alert('Success', 'Welcome Super Admin!');
+          showSuccessToast('Welcome Super Admin!', 'You are logged in.');
           setLoading(false);
           return;
         }
@@ -62,9 +67,9 @@ const SimpleLogin: React.FC = () => {
           const userData = await response.json();
           setLoggedInUser(userData);
           setLoggedIn(true);
-          Alert.alert('Success', `Welcome ${userData.name}!`);
+          showSuccessToast('Success', `Welcome ${userData.name}!`);
         } else {
-          Alert.alert('Error', 'Invalid credentials. Please try again.');
+          showErrorToast('Error', 'Invalid credentials. Please try again.');
         }
       } else {
         // REGISTER LOGIC
@@ -82,15 +87,18 @@ const SimpleLogin: React.FC = () => {
           const userData = await response.json();
           setLoggedInUser(userData);
           setLoggedIn(true);
-          Alert.alert('Success', `Welcome ${userData.name}! Account created successfully.`);
+          showSuccessToast('Account created', `Welcome ${userData.name}!`);
         } else {
           const errorData = await response.json().catch(() => ({}));
-          Alert.alert('Error', errorData.detail || 'Registration failed. Please try again.');
+          showErrorToast('Error', errorData.detail || 'Registration failed. Please try again.');
         }
       }
     } catch (error) {
       console.error('Auth error:', error);
-      Alert.alert('Error', `${isLogin ? 'Login' : 'Registration'} failed. Please check your connection.`);
+      showErrorToast(
+        'Error',
+        `${isLogin ? 'Login' : 'Registration'} failed. Please check your connection.`,
+      );
     } finally {
       setLoading(false);
     }
