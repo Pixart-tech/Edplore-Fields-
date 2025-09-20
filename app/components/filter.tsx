@@ -3,19 +3,11 @@ import { View, StyleSheet, TouchableOpacity, Dimensions, Text } from 'react-nati
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { Picker } from '@react-native-picker/picker';
 import { moderateScale } from 'react-native-size-matters';
-
-interface org {
-  id: string;
-  name: string;
-  category: string;
-  currentStatus?: string;
-  city: string;
-  state: string;
-}
+import type { Organization } from '../types/organization';
 
 type FilterProps = {
-  allMarkers: org[];
-  setFilteredMarkers: (markers: org[]) => void;
+  allMarkers: Organization[];
+  setFilteredMarkers: (markers: Organization[]) => void;
 };
 
 const Filter: React.FC<FilterProps> = ({ allMarkers, setFilteredMarkers }) => {
