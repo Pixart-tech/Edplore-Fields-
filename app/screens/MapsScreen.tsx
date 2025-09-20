@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Alert, Linking, View } from 'react-native';
+import { Alert, Linking, View, Platform, ToastAndroid } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { db } from '../../src/firebase';
 import { collection, addDoc, doc, getDoc } from 'firebase/firestore';
@@ -55,6 +55,21 @@ const MapsScreen: React.FC = () => {
   const [formURL, setFormURL] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState('');
   const [previousSchoolsValue, setPreviousSchoolsValue] = useState<string | null>(null);
+
+  const showToast = useCallback(
+    (type: 'success' | 'error', message: string) => {
+      const defaultMessage = type === 'success' ? 'Success' : 'Something went wrong';
+      const text = message && message.trim().length > 0 ? message.trim() : defaultMessage;
+
+      if (Platform.OS === 'android') {
+        const prefix = type === 'success' ? '✅ ' : '⚠️ ';
+        ToastAndroid.show(`${prefix}${text}`, ToastAndroid.LONG);
+      } else {
+        Alert.alert(type === 'success' ? 'Success' : 'Error', text);
+      }
+    },
+    []
+  );
 
   const extractFormEntryValue = useCallback((url: string | null, entryId: string): string => {
     if (!url) {
@@ -501,62 +516,9 @@ const MapsScreen: React.FC = () => {
     setShowDetails(true);
   }, []);
 
-  const submitCategoryUpdate = useCallback(
-    async (organization: Organization, category: string) => {
-      if (!category) {
-        return { success: true, skipped: true } as const;
-      }
-
-      const hasCoordinates =
-        typeof organization.latitude === 'number' &&
-        typeof organization.longitude === 'number' &&
-        !Number.isNaN(organization.latitude) &&
-        !Number.isNaN(organization.longitude);
-
-      const mapsUrl = organization.mapsUrl
-        ? organization.mapsUrl.trim()
-        : hasCoordinates
-        ? `https://www.google.com/maps/search/?api=1&query=${organization.latitude},${organization.longitude}`
-        : '';
-
-      if (!mapsUrl) {
-        console.warn('Missing map URL for organization update');
-        return { success: false, skipped: true } as const;
-      }
-
-      const payload = {
-        key: mapsUrl,
-        mapurl: mapsUrl,
-        selectedCategory: category,
-      };
-
-      try {
-        const response = await fetch(
-          'https://script.google.com/macros/s/AKfycbxvc7ql3fN3MmfYmUuONI6TeDFfysalIA2sh_fAQC19xclIfEGoPXgf0fYXDTvYzvh39w/exec',
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-          }
-        );
-
-        if (!response.ok) {
-          const errorMessage = await response.text();
-          throw new Error(errorMessage || 'Failed to update category');
-        }
-
-        return { success: true, skipped: false } as const;
-      } catch (error) {
-        console.error('Error updating category via script:', error);
-        return { success: false, skipped: false } as const;
-      }
-    },
-    []
-  );
-
   const handleSaveEdit = useCallback(async () => {
     if (!selectedOrg) {
-      Alert.alert('Error', 'No organization selected to edit.');
+      showToast('error', 'No organization selected to edit.');
       return;
     }
 
@@ -594,13 +556,21 @@ const MapsScreen: React.FC = () => {
     }
     const addOnsValue = Array.from(new Set(addOnEntries)).join(', ');
 
+    const mapUrl = selectedOrg.mapsUrl?.trim() ?? '';
+    if (!mapUrl) {
+      showToast('error', 'Unable to update this record because it is missing a map URL.');
+      return;
+    }
+
+    const categoryToSubmit = (selectedCategory || editFormData.category || selectedOrg.category || '').trim();
+
     const updatedOrg: Organization = {
       ...selectedOrg,
-      name: editFormData.name.trim(),
+      name: editFormData.name.trim() || selectedOrg.name,
       address: editFormData.address.trim() || selectedOrg.address,
       contact: editFormData.contact.trim(),
       whatsapp: editFormData.whatsapp.trim(),
-      category: editFormData.category.trim(),
+      category: categoryToSubmit,
       type: editFormData.type.trim(),
       update: editFormData.update.trim(),
       website: editFormData.website.trim(),
@@ -621,33 +591,105 @@ const MapsScreen: React.FC = () => {
       additionalGuests: editFormData.additionalGuests.trim(),
     };
 
-    setOrganizations((prev) => prev.map((org) => (org.mapsUrl === updatedOrg.mapsUrl ? updatedOrg : org)));
-    setFilteredOrganizations((prev) => prev.map((org) => (org.mapsUrl === updatedOrg.mapsUrl ? updatedOrg : org)));
-    setAssignedOrganizations((prev) => prev.map((org) => (org.mapsUrl === updatedOrg.mapsUrl ? updatedOrg : org)));
-    setFilterMarkers((prev) => {
-      if (!prev) {
-        return prev;
+    const jsonData = {
+      key: mapUrl,
+      mapurl: mapUrl,
+      selectedCategory: categoryToSubmit,
+      category: categoryToSubmit,
+      name: updatedOrg.name,
+      title: updatedOrg.name,
+      address: updatedOrg.address ?? '',
+      contact: updatedOrg.contact ?? '',
+      phone: updatedOrg.contact ?? '',
+      whatsapp: updatedOrg.whatsapp ?? '',
+      type: updatedOrg.type ?? '',
+      update: updatedOrg.update ?? '',
+      website: updatedOrg.website ?? '',
+      city: updatedOrg.city ?? '',
+      area: updatedOrg.state ?? '',
+      pulseCode: updatedOrg.pulseCode ?? '',
+      status: updatedOrg.status ?? '',
+      numberOfStudents: updatedOrg.numberOfStudents ?? '',
+      currentPublication: editFormData.currentPublication,
+      currentPublicationOther:
+        editFormData.currentPublication === 'Other' ? editFormData.currentPublicationOther.trim() : '',
+      currentPublicationName: updatedOrg.currentPublicationName ?? '',
+      currentStatus: updatedOrg.currentStatus ?? '',
+      currentStatusDetails: updatedOrg.currentStatusDetails ?? '',
+      assignee: updatedOrg.assignee ?? '',
+      decisionMakerName: updatedOrg.decisionMakerName ?? '',
+      phoneDM: updatedOrg.phoneDM ?? '',
+      ho: updatedOrg.ho ?? '',
+      guests: updatedOrg.guests ?? '',
+      additionalGuests: updatedOrg.additionalGuests ?? '',
+      addOns: updatedOrg.addOns ?? '',
+    };
+
+    try {
+      const response = await fetch(
+        'https://script.google.com/macros/s/AKfycbxvc7ql3fN3MmfYmUuONI6TeDFfysalIA2sh_fAQC19xclIfEGoPXgf0fYXDTvYzvh39w/exec',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jsonData }),
+        }
+      );
+
+      const responseText = await response.text();
+      let parsedBody: any = null;
+      if (responseText) {
+        try {
+          parsedBody = JSON.parse(responseText);
+        } catch (parseError) {
+          console.error('Failed to parse update response:', parseError, responseText);
+          throw new Error('Received an unexpected response while updating the organization.');
+        }
       }
-      return prev.map((org) => (org.mapsUrl === updatedOrg.mapsUrl ? updatedOrg : org));
-    });
-    setSelectedOrg(updatedOrg);
 
-    const categoryToSubmit = selectedCategory || updatedOrg.category || '';
-    const result = await submitCategoryUpdate(updatedOrg, categoryToSubmit);
+      const successValue =
+        typeof parsedBody?.success === 'boolean'
+          ? parsedBody.success
+          : typeof parsedBody?.status === 'string'
+          ? parsedBody.status.toLowerCase() === 'success'
+          : typeof parsedBody?.status === 'boolean'
+          ? parsedBody.status
+          : response.ok;
 
-    setEditFormData(INITIAL_EDIT_FORM);
-    setFormURL(null);
-    setSelectedCategory('');
-    setPreviousSchoolsValue(null);
-    setShowEditForm(false);
-    setShowDetails(true);
+      if (!successValue) {
+        const errorMessage =
+          parsedBody?.message ||
+          parsedBody?.error ||
+          (!response.ok ? `Request failed with status ${response.status}.` : 'Failed to update the organization.');
+        throw new Error(errorMessage);
+      }
 
-    if (result.success) {
-      Alert.alert('Success', result.skipped ? 'Organization details updated locally.' : 'Organization details updated.');
-    } else {
-      Alert.alert('Warning', 'Details saved locally, but updating the record remotely failed.');
+      const successMessage = parsedBody?.message || 'Organization details updated.';
+
+      setOrganizations((prev) => prev.map((org) => (org.mapsUrl === updatedOrg.mapsUrl ? updatedOrg : org)));
+      setFilteredOrganizations((prev) => prev.map((org) => (org.mapsUrl === updatedOrg.mapsUrl ? updatedOrg : org)));
+      setAssignedOrganizations((prev) => prev.map((org) => (org.mapsUrl === updatedOrg.mapsUrl ? updatedOrg : org)));
+      setFilterMarkers((prev) => {
+        if (!prev) {
+          return prev;
+        }
+        return prev.map((org) => (org.mapsUrl === updatedOrg.mapsUrl ? updatedOrg : org));
+      });
+      setSelectedOrg(updatedOrg);
+      setEditFormData(INITIAL_EDIT_FORM);
+      setFormURL(null);
+      setSelectedCategory('');
+      setPreviousSchoolsValue(null);
+      setShowEditForm(false);
+      setShowDetails(true);
+
+      showToast('success', successMessage);
+    } catch (error) {
+      console.error('Error saving organization details:', error);
+      const fallbackMessage =
+        error instanceof Error ? error.message : 'Failed to update the organization. Please try again.';
+      showToast('error', fallbackMessage);
     }
-  }, [editFormData, selectedCategory, selectedOrg, submitCategoryUpdate]);
+  }, [editFormData, selectedCategory, selectedOrg, showToast]);
 
   const handleOpenDirections = useCallback(async () => {
     if (!selectedOrg) {
