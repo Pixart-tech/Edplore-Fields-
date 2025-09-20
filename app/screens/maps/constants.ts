@@ -144,9 +144,9 @@ export const INITIAL_EDIT_FORM: EditFormState = {
 };
 
 export const INITIAL_MEETING_FORM: MeetingFormState = {
-  title: '',
-  description: '',
-  scheduledTime: '',
+  organizationTitle: '',
+  meetingReason: '',
+  meetingDateTime: null,
 };
 
 export const LIVE_TRACKING_COLORS = [

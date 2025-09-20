@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   RefreshControl,
   Platform,
+  ToastAndroid,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../src/context/AuthContext';
@@ -104,6 +106,52 @@ const HomeScreen: React.FC = () => {
     setRefreshing(true);
     await loadData();
     setRefreshing(false);
+  };
+
+  const openLocationSettings = () => {
+    try {
+      if (typeof Linking.openSettings === 'function') {
+        Linking.openSettings().catch((err) => {
+          console.error('Unable to open settings:', err);
+        });
+      } else {
+        Linking.openURL('app-settings:').catch((err) => {
+          console.error('Unable to open settings:', err);
+        });
+      }
+    } catch (error) {
+      console.error('Unable to open settings:', error);
+    }
+  };
+
+  const handleStartUnifiedTracking = async () => {
+    try {
+      const mode = await startUnifiedTracking();
+      if (mode === 'foreground') {
+        const message =
+          'Location tracking started in foreground-only mode. Keep the app open and enable "Allow all the time" in system settings to continue tracking in the background.';
+
+        if (Platform.OS === 'android') {
+          ToastAndroid.show(message, ToastAndroid.LONG);
+        }
+
+        Alert.alert(
+          'Enable Background Location',
+          message,
+          [
+            {
+              text: 'Open Settings',
+              onPress: () => openLocationSettings(),
+            },
+            { text: 'OK', style: 'cancel' },
+          ]
+        );
+      } else {
+        Alert.alert('Success', 'Location tracking started');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to start location tracking');
+    }
   };
 
   const handleUnifiedTrackingToggle = async () => {

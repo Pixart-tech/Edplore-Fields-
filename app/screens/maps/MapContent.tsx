@@ -1,5 +1,5 @@
-import React from 'react';
-import { Text, View } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 import { Marker, Region } from 'react-native-maps';
 
 import ClusteredMarkers from '../../components/ClusteredMarkers';
@@ -7,6 +7,7 @@ import { MapView, PROVIDER_GOOGLE } from '../../components/SimpleMapComponent';
 import type { Organization } from '../../types/organization';
 import styles from './styles';
 import type { LiveTrackingUser, ThemeColors } from './types';
+import { getMarkerColor, getMarkerLabel } from '../../components/category';
 
 interface MapContentProps {
   organizations: Organization[];
@@ -18,7 +19,56 @@ interface MapContentProps {
   liveUsers: LiveTrackingUser[];
   liveUserColors: Record<string, string>;
   showLiveTracking: boolean;
+  clusterEnabled: boolean;
 }
+
+type StandaloneMarkerProps = {
+  organization: Organization;
+  onPress: (organization: Organization) => void;
+};
+
+const StandaloneMarker = React.memo(({ organization, onPress }: StandaloneMarkerProps) => {
+  const [tracksViewChanges, setTracksViewChanges] = useState(true);
+
+  const markerColor = getMarkerColor(organization.status, organization.category);
+  const { label, shapeStyle } = getMarkerLabel(organization.category);
+
+  const handleLayout = useCallback(() => {
+    if (tracksViewChanges) {
+      setTracksViewChanges(false);
+    }
+  }, [tracksViewChanges]);
+
+  const handlePress = useCallback(() => {
+    onPress(organization);
+  }, [onPress, organization]);
+
+  return (
+    <Marker
+      coordinate={{
+        latitude: organization.latitude,
+        longitude: organization.longitude,
+      }}
+      onPress={handlePress}
+      title={organization.name}
+      description={organization.category}
+      tracksViewChanges={tracksViewChanges}
+    >
+      <View
+        style={[
+          markerStyles.markerContainer,
+          { backgroundColor: markerColor },
+          shapeStyle,
+        ]}
+        onLayout={handleLayout}
+      >
+        <Text style={markerStyles.markerLabel}>{label}</Text>
+      </View>
+    </Marker>
+  );
+});
+
+StandaloneMarker.displayName = 'StandaloneMarker';
 
 const MapContent: React.FC<MapContentProps> = ({
   organizations,
@@ -30,6 +80,7 @@ const MapContent: React.FC<MapContentProps> = ({
   liveUsers,
   liveUserColors,
   showLiveTracking,
+  clusterEnabled,
 }) => (
   <View style={styles.mapContainer}>
     {organizations.length === 0 ? (
@@ -48,11 +99,27 @@ const MapContent: React.FC<MapContentProps> = ({
         region={visibleRegion}
         onRegionChangeComplete={onRegionChange}
       >
-        <ClusteredMarkers
-          organizations={organizations}
-          region={visibleRegion}
-          onMarkerPress={onOrganizationPress}
-        />
+        {clusterEnabled ? (
+          <ClusteredMarkers
+            organizations={organizations}
+            region={visibleRegion}
+            onMarkerPress={onOrganizationPress}
+          />
+        ) : (
+          organizations.map((organization) => {
+            const organizationKey =
+              organization.mapsUrl ??
+              `${organization.name}-${organization.latitude}-${organization.longitude}`;
+
+            return (
+              <StandaloneMarker
+                key={`org-${organizationKey}`}
+                organization={organization}
+                onPress={onOrganizationPress}
+              />
+            );
+          })
+        )}
 
         {showLiveTracking &&
           liveUsers.map((liveUser, index) => {
@@ -83,3 +150,25 @@ const MapContent: React.FC<MapContentProps> = ({
 );
 
 export default MapContent;
+
+const markerStyles = StyleSheet.create({
+  markerContainer: {
+    minWidth: 30,
+    minHeight: 30,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    borderWidth: 2,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  markerLabel: {
+    color: '#fff',
+    fontWeight: '700',
+  },
+});
