@@ -1,7 +1,6 @@
 export interface Organization {
-  id: string;
+  mapsUrl?: string;
   name: string;
-  address: string;
   latitude: number;
   longitude: number;
   city: string;
@@ -15,7 +14,6 @@ export interface Organization {
   website?: string;
   status?: string;
   pulseCode?: string;
-  recordKey?: string;
   numberOfStudents?: string;
   currentPublicationName?: string;
   decisionMakerName?: string;
@@ -23,22 +21,12 @@ export interface Organization {
   ho?: string;
   currentStatus?:string;
   currentStatusDetails?: string;
-  demo?: string;
   assignee?: string;
   whatsapp?: string;
-  eventTitle?: string;
-  startDate?: string;
-  startTime?: string;
-  endDate?: string;
-  endTime?: string;
-  location?: string;
-  guests?: string;
   beforeSchool?: string;
   afterSchool?: string;
   addOns?: string;
   formUrl?: string;
-  mapsUrl?: string;
-  link?: string;
 }
 
 export type OrganizationList = Organization[];

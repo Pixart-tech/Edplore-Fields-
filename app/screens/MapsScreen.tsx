@@ -242,9 +242,8 @@ const MapsScreen: React.FC = () => {
         const longitude = parseFloat(coordParts[1]) || 0;
         
         const org: Organization = {
-          id: `org_${index}`,
+          mapsUrl: item['Maps URL'] || item['Maps Link'] || item.mapsUrl || item['Map URL'] || '',
           name: item.Title || 'Unknown Organization',
-          address: coordinates || 'Address not available',
           latitude: latitude,
           longitude: longitude,
           city: item.City || 'Unknown City',
@@ -258,7 +257,6 @@ const MapsScreen: React.FC = () => {
           website: item.Website || '',
           status: item.Status || '',
           pulseCode: item['Pulse Code'] || '',
-          recordKey: item.Key || item.key || item['Record Key'] || '',
           numberOfStudents: item['Number of students'] || '',
           currentPublicationName: item['Current Publication name '] || '',
           decisionMakerName: item['Decision Maker Name'] || '',
@@ -266,29 +264,11 @@ const MapsScreen: React.FC = () => {
           ho: item.HO || '',
           currentStatus: item['Current Status'] || '',
           currentStatusDetails: item['Current Status Details'] || '',
-          demo: item.Demo || '',
           assignee: item.Asignee || '',
           whatsapp: item.Whatsapp || '',
-          eventTitle: item['Event Title'] || '',
-          startDate: item['Start Date'] || '',
-          startTime: item['Start Time'] || '',
-          endDate: item['End Date'] || '',
-          endTime: item['End Time'] || '',
-          location: item.Location || '',
-          guests: item.Guests || '',
           beforeSchool: item['Before School'] || '',
           afterSchool: item['After School'] || '',
           addOns: item['Add-ons'] || '',
-          formUrl:
-            item['Form URL'] ||
-            item['Form Link'] ||
-            item['Edit Form Link'] ||
-            item['Edit Link'] ||
-            item.link ||
-            item.Link ||
-            '',
-          mapsUrl: item['Maps URL'] || item['Maps Link'] || item.mapsUrl || item['Map URL'] || '',
-          link: item.link || item.Link || '',
         };
         
         if (org.latitude !== 0 && org.longitude !== 0) {
@@ -394,7 +374,7 @@ const MapsScreen: React.FC = () => {
       return;
     }
 
-    const formLink = selectedOrg.formUrl || selectedOrg.link || null;
+    const formLink = selectedOrg.formUrl || selectedOrg.mapsUrl || null;
     const categoryFromForm = extractFormEntryValue(formLink, 'entry.1748805668');
     const resolvedCategory = categoryFromForm || selectedOrg.category || '';
     const previousSchools = extractFormEntryValue(formLink, 'entry.1597701263');
@@ -411,15 +391,6 @@ const MapsScreen: React.FC = () => {
     const whatsappValue = selectedOrg.whatsapp && WHATSAPP_OPTIONS.includes(selectedOrg.whatsapp)
       ? selectedOrg.whatsapp
       : '';
-
-    const guestList = selectedOrg.guests
-      ? selectedOrg.guests
-          .split(',')
-          .map((guest) => guest.trim())
-          .filter(Boolean)
-      : [];
-    const selectedGuests = guestList.filter((guest) => GUEST_OPTIONS.includes(guest));
-    const additionalGuests = guestList.filter((guest) => !GUEST_OPTIONS.includes(guest)).join(', ');
 
     const addOnList = selectedOrg.addOns
       ? selectedOrg.addOns
@@ -440,7 +411,6 @@ const MapsScreen: React.FC = () => {
 
     setEditFormData({
       name: selectedOrg.name,
-      address: selectedOrg.address,
       contact: selectedOrg.contact ?? '',
       whatsapp: whatsappValue,
       category: resolvedCategory,
@@ -451,8 +421,6 @@ const MapsScreen: React.FC = () => {
       currentStatus: selectedOrg.currentStatus ?? '',
       currentStatusDetails: selectedOrg.currentStatusDetails ?? '',
       assignee: selectedOrg.assignee ?? '',
-      guests: selectedGuests,
-      additionalGuests,
       addOns: addOnsSelection,
       addOnsOther,
     });
@@ -489,9 +457,9 @@ const MapsScreen: React.FC = () => {
         return { success: true, skipped: true } as const;
       }
 
-      const recordKey = organization.recordKey || organization.pulseCode || organization.id;
+      const recordKey =  organization.pulseCode || organization.mapsUrl;
       if (!recordKey) {
-        console.warn('Missing record key for organization update:', organization.id);
+        console.warn('Missing record key for organization update:', organization.mapsUrl);
         return { success: false, skipped: true } as const;
       }
 
@@ -572,7 +540,6 @@ const MapsScreen: React.FC = () => {
     const updatedOrg: Organization = {
       ...selectedOrg,
       name: editFormData.name,
-      address: editFormData.address,
       contact: editFormData.contact,
       whatsapp: editFormData.whatsapp,
       category: editFormData.category,
@@ -582,18 +549,17 @@ const MapsScreen: React.FC = () => {
       currentStatusDetails: editFormData.currentStatusDetails,
       assignee: editFormData.assignee,
       currentPublicationName: resolvedPublication,
-      guests: guestsValue,
       addOns: addOnsValue,
     };
 
-    setOrganizations((prev) => prev.map((org) => (org.id === updatedOrg.id ? updatedOrg : org)));
-    setFilteredOrganizations((prev) => prev.map((org) => (org.id === updatedOrg.id ? updatedOrg : org)));
-    setAssignedOrganizations((prev) => prev.map((org) => (org.id === updatedOrg.id ? updatedOrg : org)));
+    setOrganizations((prev) => prev.map((org) => (org.mapsUrl === updatedOrg.mapsUrl ? updatedOrg : org)));
+    setFilteredOrganizations((prev) => prev.map((org) => (org.mapsUrl === updatedOrg.mapsUrl ? updatedOrg : org)));
+    setAssignedOrganizations((prev) => prev.map((org) => (org.mapsUrl === updatedOrg.mapsUrl ? updatedOrg : org)));
     setFilterMarkers((prev) => {
       if (!prev) {
         return prev;
       }
-      return prev.map((org) => (org.id === updatedOrg.id ? updatedOrg : org));
+      return prev.map((org) => (org.mapsUrl === updatedOrg.mapsUrl ? updatedOrg : org));
     });
     setSelectedOrg(updatedOrg);
 
@@ -619,7 +585,7 @@ const MapsScreen: React.FC = () => {
       return;
     }
 
-    const { latitude, longitude, name, address } = selectedOrg;
+    const { latitude, longitude, name } = selectedOrg;
 
     if (typeof latitude !== 'number' || typeof longitude !== 'number' || Number.isNaN(latitude) || Number.isNaN(longitude)) {
       Alert.alert('Directions unavailable', 'This organization does not have valid coordinates.');
@@ -629,7 +595,7 @@ const MapsScreen: React.FC = () => {
     const baseUrl = 'https://www.google.com/maps/dir/?api=1';
     const queryParams = [`destination=${encodeURIComponent(`${latitude},${longitude}`)}`];
 
-    const label = [name, address].filter(Boolean).join(' ');
+    const label = [name].filter(Boolean).join(' ');
     if (label) {
       queryParams.push(`query=${encodeURIComponent(label)}`);
     }
@@ -762,7 +728,7 @@ const MapsScreen: React.FC = () => {
       await addDoc(collection(db, 'meetings'), {
         title: meetingData.title,
         description: meetingData.description || null,
-        location_id: selectedOrg?.id,
+        location_id: selectedOrg?.mapsUrl,
         scheduled_time: new Date(meetingData.scheduledTime).toISOString(),
         attendees: [user?.email],
         status: 'pending',
@@ -842,10 +808,10 @@ const MapsScreen: React.FC = () => {
       return;
     }
 
-    const markerIdSet = new Set(nextMarkers.map((marker) => marker.id));
+    const markerIdSet = new Set(nextMarkers.map((marker) => marker.mapsUrl));
     const matchesAllOrganizations =
       nextMarkers.length === organizations.length &&
-      organizations.every((org) => markerIdSet.has(org.id));
+      organizations.every((org) => markerIdSet.has(org.mapsUrl));
 
     setFilterMarkers(matchesAllOrganizations ? null : nextMarkers);
   };

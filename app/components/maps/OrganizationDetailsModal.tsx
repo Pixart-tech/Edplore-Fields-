@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Modal, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import { Modal, Text, TouchableOpacity, ScrollView, StyleSheet, View} from 'react-native';
 import Icon from '@expo/vector-icons/MaterialIcons';
 
 import type { Organization } from '../../types/organization';
@@ -55,7 +55,7 @@ const OrganizationDetailsModal: React.FC<Props> = ({
       return [];
     }
 
-    const normalize = (value?: string) => value?.trim() ?? '';
+    const normalize = (value?: unknown): string => typeof value === "string" ? value.trim() : "";
 
     const entries: DetailEntry[] = [];
 

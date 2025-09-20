@@ -117,7 +117,7 @@ const EditOrganizationModal: React.FC<Props> = ({
         <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
           <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
             <View>
-              <Text style={[styles.modalTitle, { color: colors.text }]}>Edit Organization</Text>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Edit School Details</Text>
               {organizationName ? (
                 <Text style={[styles.modalSubtitle, { color: colors.secondary }]} numberOfLines={1}>
                   {organizationName}
@@ -135,31 +135,9 @@ const EditOrganizationModal: React.FC<Props> = ({
               style={[styles.textInput, { borderColor: colors.border, color: colors.text }]}
               value={formData.name}
               onChangeText={(value) => onChange('name', value)}
-              placeholder="Organization name"
+              placeholder="School name"
               placeholderTextColor={colors.secondary}
             />
-
-            <Text style={[styles.inputLabel, { color: colors.text }]}>Address</Text>
-            <TextInput
-              style={[styles.textInput, { borderColor: colors.border, color: colors.text }]}
-              value={formData.address}
-              onChangeText={(value) => onChange('address', value)}
-              placeholder="Organization address"
-              placeholderTextColor={colors.secondary}
-            />
-
-            <Text style={[styles.inputLabel, { color: colors.text }]}>Phone</Text>
-            <TextInput
-              style={[styles.textInput, { borderColor: colors.border, color: colors.text }]}
-              value={formData.contact}
-              onChangeText={(value) => onChange('contact', value)}
-              placeholder="Primary phone number"
-              placeholderTextColor={colors.secondary}
-              keyboardType="phone-pad"
-            />
-
-            <Text style={[styles.inputLabel, { color: colors.text }]}>WhatsApp</Text>
-            {renderPicker(whatsappOptions, formData.whatsapp, 'whatsapp', 'Select WhatsApp status')}
 
             <Text style={[styles.inputLabel, { color: colors.text }]}>Category</Text>
             {categoryOptions.length > 0 ? (
@@ -173,6 +151,71 @@ const EditOrganizationModal: React.FC<Props> = ({
                 placeholderTextColor={colors.secondary}
               />
             )}
+
+            <Text style={[styles.inputLabel, { color: colors.text }]}>Type</Text>
+            <TextInput
+              style={[styles.textInput, { borderColor: colors.border, color: colors.text }]}
+              value={formData.type}
+              onChangeText={(value) => onChange('type', value)}
+              placeholder="Type"
+              placeholderTextColor={colors.secondary}
+            />
+
+            <Text style={[styles.inputLabel, { color: colors.text }]}>Phone</Text>
+            <TextInput
+              style={[styles.textInput, { borderColor: colors.border, color: colors.text }]}
+              value={formData.contact}
+              onChangeText={(value) => onChange('contact', value)}
+              placeholder="Primary phone number"
+              placeholderTextColor={colors.secondary}
+              keyboardType="phone-pad"
+            />
+
+            <Text style={[styles.inputLabel, { color: colors.text }]}>Update</Text>
+            <TextInput
+              style={[styles.textInput, { borderColor: colors.border, color: colors.text }]}
+              value={formData.contact}
+              onChangeText={(value) => onChange('update', value)}
+              placeholder="Let us kow the client update"
+              placeholderTextColor={colors.secondary}
+            />
+
+            <Text style={[styles.inputLabel, { color: colors.text }]}>Current Status</Text>
+            {renderPicker(currentStatusOptions, formData.currentStatus, 'currentStatus', 'Select status')}
+
+            <Text style={[styles.inputLabel, { color: colors.text }]}>Website</Text>
+            <TextInput
+              style={[styles.textInput, { borderColor: colors.border, color: colors.text }]}
+              value={formData.contact}
+              onChangeText={(value) => onChange('website', value)}
+              placeholder="Add website link here"
+              placeholderTextColor={colors.secondary}
+            />
+
+            <Text style={[styles.inputLabel, { color: colors.text }]}>City</Text>
+            {renderPicker(currentStatusOptions, formData.city, 'cities', 'Select City')}
+            
+            <Text style={[styles.inputLabel, { color: colors.text }]}>Area</Text>
+            {renderPicker(whatsappOptions, formData.area, 'area', 'Select Area')}
+
+            <Text style={[styles.inputLabel, { color: colors.text }]}>Status</Text>
+            <TextInput
+              style={[styles.textInput, { borderColor: colors.border, color: colors.text }]}
+              value={formData.status}
+              onChangeText={(value) => onChange('status', value)}
+              placeholder="Status"
+              placeholderTextColor={colors.secondary}
+            />
+
+            <Text style={[styles.inputLabel, { color: colors.text }]}>Number of Students</Text>
+            <TextInput
+              style={[styles.textInput, { borderColor: colors.border, color: colors.text }]}
+              value={formData.numberofStudents}
+              onChangeText={(value) => onChange('numberofstudent', value)}
+              placeholder="Total student count"
+              placeholderTextColor={colors.secondary}
+              keyboardType="phone-pad"
+            />
 
             <Text style={[styles.inputLabel, { color: colors.text }]}>Current Publication</Text>
             {renderPicker(
@@ -191,26 +234,33 @@ const EditOrganizationModal: React.FC<Props> = ({
               />
             ) : null}
 
-            <Text style={[styles.inputLabel, { color: colors.text }]}>Pulse Code</Text>
+            <Text style={[styles.inputLabel, { color: colors.text }]}>Decision Maker Name</Text>
             <TextInput
               style={[styles.textInput, { borderColor: colors.border, color: colors.text }]}
-              value={formData.pulseCode}
-              onChangeText={(value) => onChange('pulseCode', value)}
-              placeholder="Pulse code"
+              value={formData.dmname}
+              onChangeText={(value) => onChange('dmname', value)}
+              placeholder="School Decision Maker Name"
               placeholderTextColor={colors.secondary}
             />
 
-            <Text style={[styles.inputLabel, { color: colors.text }]}>Status</Text>
+            <Text style={[styles.inputLabel, { color: colors.text }]}>Decision Maker Phone Number</Text>
             <TextInput
               style={[styles.textInput, { borderColor: colors.border, color: colors.text }]}
-              value={formData.status}
-              onChangeText={(value) => onChange('status', value)}
-              placeholder="Status"
+              value={formData.dmnumber}
+              onChangeText={(value) => onChange('dmnumber', value)}
+              placeholder="School Decision Maker Number"
               placeholderTextColor={colors.secondary}
+              keyboardType="phone-pad"
             />
 
-            <Text style={[styles.inputLabel, { color: colors.text }]}>Current Status</Text>
-            {renderPicker(currentStatusOptions, formData.currentStatus, 'currentStatus', 'Select status')}
+             <Text style={[styles.inputLabel, { color: colors.text }]}>Head Office Pulse Code</Text>
+            <TextInput
+              style={[styles.textInput, { borderColor: colors.border, color: colors.text }]}
+              value={formData.hopulseCode}
+              onChangeText={(value) => onChange('hopulseCode', value)}
+              placeholder="Head Office pulse code"
+              placeholderTextColor={colors.secondary}
+            />
 
             <Text style={[styles.inputLabel, { color: colors.text }]}>Current Status Details</Text>
             {renderPicker(
@@ -229,40 +279,19 @@ const EditOrganizationModal: React.FC<Props> = ({
               placeholderTextColor={colors.secondary}
             />
 
-            <Text style={[styles.sectionLabel, { color: colors.text }]}>Guests</Text>
-            <View style={styles.multiSelectContainer}>
-              {guestOptions.map((option) => {
-                const selected = formData.guests.includes(option);
-                return (
-                  <TouchableOpacity
-                    key={option}
-                    style={[
-                      styles.multiSelectOption,
-                      {
-                        borderColor: selected ? colors.primary : colors.border,
-                        backgroundColor: selected ? 'rgba(0,0,0,0.04)' : 'transparent',
-                      },
-                    ]}
-                    onPress={() => toggleSelection('guests', option)}
-                    activeOpacity={0.75}
-                  >
-                    <Icon
-                      name={selected ? 'check-box' : 'check-box-outline-blank'}
-                      size={20}
-                      color={selected ? colors.primary : colors.secondary}
-                    />
-                    <Text style={[styles.multiSelectOptionText, { color: colors.text }]}>{option}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            <Text style={[styles.inputLabel, { color: colors.text }]}>WhatsApp</Text>
+            {renderPicker(whatsappOptions, formData.whatsapp, 'whatsapp', 'Select WhatsApp status')}
+
+          
+            <Text style={[styles.inputLabel, { color: colors.text }]}>Pulse Code</Text>
             <TextInput
               style={[styles.textInput, { borderColor: colors.border, color: colors.text }]}
-              value={formData.additionalGuests}
-              onChangeText={(value) => onChange('additionalGuests', value)}
-              placeholder="Additional guests (comma separated)"
+              value={formData.pulseCode}
+              onChangeText={(value) => onChange('pulseCode', value)}
+              placeholder="Pulse code"
               placeholderTextColor={colors.secondary}
             />
+
 
             <Text style={[styles.sectionLabel, { color: colors.text }]}>Add-ons</Text>
             <View style={styles.multiSelectContainer}>
