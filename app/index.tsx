@@ -5,6 +5,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import Icon from '@expo/vector-icons/MaterialIcons';
+import Toast from 'react-native-toast-message';
 
 // Import screens
 import LoginScreen from './screens/LoginScreen';
@@ -15,6 +16,7 @@ import ProfileScreen from './screens/ProfileScreen';
 import { AuthProvider, useAuth } from '../src/context/AuthContext';
 import { LocationProvider } from '../src/context/LocationContext';
 import { ThemeProvider, useTheme } from '../src/context/ThemeContext';
+import toastConfig from '../src/utils/toastConfig';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -108,6 +110,7 @@ export default function App() {
           <LocationProvider>
             <AppNavigator />
             <StatusBar style="auto" />
+            <Toast config={toastConfig} />
           </LocationProvider>
         </AuthProvider>
       </ThemeProvider>

@@ -5,7 +5,6 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -16,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../src/context/AuthContext';
 import { useTheme } from '../../src/context/ThemeContext';
 import Icon from '@expo/vector-icons/MaterialIcons';
+import { showErrorToast, showWarningToast } from '../../src/utils/toast';
 
 const LoginScreen: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -31,12 +31,12 @@ const LoginScreen: React.FC = () => {
 
   const handleSubmit = async () => {
     if (!formData.email || !formData.password) {
-      Alert.alert('Error', 'Please fill in all required fields');
+      showWarningToast('Missing information', 'Please fill in all required fields.');
       return;
     }
 
     if (!isLogin && (!formData.name || !formData.phone)) {
-      Alert.alert('Error', 'Please fill in all required fields');
+      showWarningToast('Missing information', 'Please fill in all required fields.');
       return;
     }
 
@@ -52,11 +52,11 @@ const LoginScreen: React.FC = () => {
       }
 
       if (!success) {
-        Alert.alert('Error', isLogin ? 'Invalid credentials' : 'Registration failed');
+        showErrorToast('Error', isLogin ? 'Invalid credentials' : 'Registration failed');
       }
     } catch (error) {
       console.error('Auth error:', error);
-      Alert.alert('Error', 'Something went wrong. Please try again.');
+      showErrorToast('Error', 'Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }

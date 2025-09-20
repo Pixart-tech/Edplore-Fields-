@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   Modal,
   TextInput,
-  Alert,
   RefreshControl,
   Platform,
 } from 'react-native';
@@ -26,14 +25,7 @@ import type { Unsubscribe } from 'firebase/firestore';
 import { useAuth } from '../../src/context/AuthContext';
 import { useTheme } from '../../src/context/ThemeContext';
 import Icon from '@expo/vector-icons/MaterialIcons';
-import DateTimePicker from '@react-native-community/datetimepicker';
-import {
-  cancelCalendarEvents,
-  createCalendarEvents,
-  getSharedCalendarEmail,
-  updateCalendarEvents,
-  CalendarSyncResult,
-} from '../../src/services/calendar';
+import { showErrorToast, showSuccessToast } from '../../src/utils/toast';
 
 interface Meeting {
   _id: string;
@@ -117,8 +109,23 @@ const MeetingsScreen: React.FC = () => {
   );
 
   useEffect(() => {
-    if (!user) {
-      return;
+    loadMeetings();
+  }, []);
+
+  const loadMeetings = async () => {
+    try {
+      setLoading(true);
+      const meetingsQuery = user?.role === 'admin'
+        ? query(collection(db, 'meetings'), orderBy('created_at', 'desc'))
+        : query(collection(db, 'meetings'), where('created_by', '==', user?.id || user?.email || ''));
+      const snap = await getDocs(meetingsQuery);
+      setMeetings(snap.docs.map(d => d.data() as any));
+    } catch (error) {
+      console.error('Error loading meetings:', error);
+      showErrorToast('Error', 'Failed to load meetings.');
+    } finally {
+      setLoading(false);
+
     }
 
     setLoading(true);
@@ -168,9 +175,19 @@ const MeetingsScreen: React.FC = () => {
     setShowPicker(false);
   }, []);
 
-  useEffect(() => {
-    if (!showApprovalModal) {
-      setShowPicker(false);
+  const submitApproval = async (status: 'approved' | 'rejected') => {
+    if (!selectedMeeting) return;
+
+    try {
+      await setDoc(doc(db, 'meetings', selectedMeeting._id), { status, notes: approvalNotes, updated_at: new Date() }, { merge: true });
+      showSuccessToast('Meeting updated', `Meeting ${status} successfully.`);
+      setShowApprovalModal(false);
+      setApprovalNotes('');
+      setSelectedMeeting(null);
+      loadMeetings();
+    } catch (error) {
+      console.error('Error updating meeting:', error);
+      showErrorToast('Error', 'Failed to update meeting.');
     }
   }, [showApprovalModal]);
 

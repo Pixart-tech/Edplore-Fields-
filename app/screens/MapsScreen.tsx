@@ -39,6 +39,7 @@ import {
   FORM_ENTRY_IDS,
 } from './maps/constants';
 import type { AssignedAreaData } from './maps/types';
+import { showErrorToast, showSuccessToast, showWarningToast } from '../../src/utils/toast';
 
 const MapsScreen: React.FC = () => {
   const { user } = useAuth();
@@ -383,7 +384,7 @@ const MapsScreen: React.FC = () => {
       if (response.ok) {
         const jsonText = await response.text();
         console.log('Received JSON data length:', jsonText.length);
-        
+
         const organizations = parseJSONData(jsonText);
         console.log('Parsed organizations count:', organizations.length);
         
@@ -394,11 +395,11 @@ const MapsScreen: React.FC = () => {
         setOrganizations(organizations);
       } else {
         console.error('Failed to fetch data:', response.status, response.statusText);
-        Alert.alert('Error', 'Failed to load organization data');
+        showErrorToast('Error', 'Failed to load organization data');
       }
     } catch (error) {
       console.error('Error loading organizations:', error);
-      Alert.alert('Error', 'Failed to load organization data');
+      showErrorToast('Error', 'Failed to load organization data');
     } finally {
       setLoading(false);
     }
@@ -579,7 +580,7 @@ const MapsScreen: React.FC = () => {
 
   const handleSaveEdit = useCallback(async () => {
     if (!selectedOrg) {
-      Alert.alert('Error', 'No organization selected to edit.');
+      showWarningToast('No organization selected', 'Select an organization to edit before saving.');
       return;
     }
 
@@ -666,9 +667,15 @@ const MapsScreen: React.FC = () => {
     setShowDetails(true);
 
     if (result.success) {
-      Alert.alert('Success', result.skipped ? 'Organization details updated locally.' : 'Organization details updated.');
+      showSuccessToast(
+        'Organization updated',
+        result.skipped ? 'Details updated locally.' : 'Details updated successfully.',
+      );
     } else {
-      Alert.alert('Warning', 'Details saved locally, but updating the record remotely failed.');
+      showWarningToast(
+        'Partial update',
+        'Details saved locally, but updating the record remotely failed.',
+      );
     }
   }, [editFormData, selectedCategory, selectedOrg, submitCategoryUpdate]);
 
@@ -680,7 +687,7 @@ const MapsScreen: React.FC = () => {
     const { latitude, longitude, name } = selectedOrg;
 
     if (typeof latitude !== 'number' || typeof longitude !== 'number' || Number.isNaN(latitude) || Number.isNaN(longitude)) {
-      Alert.alert('Directions unavailable', 'This organization does not have valid coordinates.');
+      showWarningToast('Directions unavailable', 'This organization does not have valid coordinates.');
       return;
     }
 
@@ -699,17 +706,17 @@ const MapsScreen: React.FC = () => {
       if (supported) {
         await Linking.openURL(url);
       } else {
-        Alert.alert('Unable to open directions', 'No application is available to handle the directions link.');
+        showErrorToast('Unable to open directions', 'No application can handle the directions link.');
       }
     } catch (error) {
       console.error('Error opening directions:', error);
-      Alert.alert('Error', 'Failed to open directions.');
+      showErrorToast('Error', 'Failed to open directions.');
     }
   }, [selectedOrg]);
 
   const handleOpenFormWithParams = useCallback(() => {
     if (!formURL) {
-      Alert.alert('Form unavailable', 'No edit form link is available for this organization.');
+      showWarningToast('Form unavailable', 'No edit form link is available for this organization.');
       return;
     }
 
@@ -806,19 +813,13 @@ const MapsScreen: React.FC = () => {
       Linking.openURL(updatedUrl);
     } catch (error) {
       console.error('Error opening edit form:', error);
-      Alert.alert('Error', 'Unable to open the edit form link.');
+      showErrorToast('Error', 'Unable to open the edit form link.');
     }
   }, [editFormData, formURL, selectedCategory]);
 
-  const submitMeeting = async (mode: 'approval' | 'direct') => {
-    if (!selectedOrg) {
-      Alert.alert('Select an organization', 'Please choose an organization before scheduling a meeting.');
-      return;
-    }
-
-    const trimmedReason = meetingData.meetingReason.trim();
-    if (!trimmedReason || !meetingData.meetingDateTime) {
-      Alert.alert('Error', 'Please provide a meeting reason and choose a date & time.');
+  const submitMeeting = async () => {
+    if (!meetingData.title || !meetingData.scheduledTime) {
+      showWarningToast('Missing details', 'Please fill in all required fields.');
       return;
     }
 
@@ -888,29 +889,12 @@ const MapsScreen: React.FC = () => {
         ownerEventId: null,
         sharedEventId: null,
       });
-
-      if (calendarResult?.ownerEventId || calendarResult?.sharedEventId) {
-        await setDoc(
-          meetingDocRef,
-          {
-            ownerCalendarEventId: calendarResult.ownerEventId ?? null,
-            sharedCalendarEventId: calendarResult.sharedEventId ?? null,
-          },
-          { merge: true }
-        );
-      }
-
-      Alert.alert(
-        mode === 'direct' ? 'Meeting scheduled' : 'Request submitted',
-        mode === 'direct'
-          ? 'Your meeting has been scheduled and added to the shared calendar.'
-          : 'Your meeting request has been sent for approval.'
-      );
+      showSuccessToast('Meeting request sent', 'Submitted for approval successfully.');
       setShowMeetingForm(false);
       setMeetingData(INITIAL_MEETING_FORM);
     } catch (error) {
       console.error('Error creating meeting:', error);
-      Alert.alert('Error', 'Failed to create meeting');
+      showErrorToast('Error', 'Failed to create meeting.');
     }
   };
 

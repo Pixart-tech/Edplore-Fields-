@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
   Modal,
   TextInput,
@@ -17,6 +16,11 @@ import { db } from '../../src/firebase';
 import { collection, getDocs, doc, setDoc, orderBy } from 'firebase/firestore';
 import { useTheme } from '../../src/context/ThemeContext';
 import Icon from '@expo/vector-icons/MaterialIcons';
+import {
+  showErrorToast,
+  showSuccessToast,
+  showWarningToast,
+} from '../../src/utils/toast';
 
 interface User {
   id?: string;
@@ -57,7 +61,7 @@ const AdminAssignmentScreen: React.FC = () => {
     // Validate Firebase configuration
     if (!db) {
       console.error('Firestore database instance is not initialized');
-      Alert.alert('Error', 'Database connection not available. Please restart the app.');
+      showErrorToast('Error', 'Database connection not available. Please restart the app.');
       return;
     }
     
@@ -91,7 +95,7 @@ const AdminAssignmentScreen: React.FC = () => {
         console.log('Users data:', usersData.map(u => ({ name: u.name, role: u.role, email: u.email })));
       } catch (usersError) {
         console.error('Error loading users in AdminAssignmentScreen:', usersError);
-        Alert.alert('Error', 'Failed to load users');
+        showErrorToast('Error', 'Failed to load users');
         setUsers([]);
       }
 
@@ -188,7 +192,7 @@ const AdminAssignmentScreen: React.FC = () => {
       }
     } catch (error) {
       console.error('Error loading data:', error);
-      Alert.alert('Error', 'Failed to load data');
+      showErrorToast('Error', 'Failed to load data');
     } finally {
       setLoading(false);
     }
@@ -261,7 +265,7 @@ const AdminAssignmentScreen: React.FC = () => {
 
   const saveAssignment = async () => {
     if (!selectedUser) {
-      Alert.alert('Error', 'No user selected');
+      showWarningToast('No user selected', 'Please choose a user before assigning cities.');
       return;
     }
 
@@ -340,7 +344,7 @@ const AdminAssignmentScreen: React.FC = () => {
         // Don't fail the whole operation if script fails
       }
       
-      Alert.alert('Success', 'Cities and areas assigned successfully!');
+      showSuccessToast('Assignment saved', 'Cities and areas assigned successfully.');
       setShowAssignmentModal(false);
       
       // Update local state to reflect changes
@@ -354,7 +358,7 @@ const AdminAssignmentScreen: React.FC = () => {
       
     } catch (error: any) {
       console.error('Error saving assignment:', error);
-      Alert.alert('Error', `Failed to save assignment: ${error.message || 'Unknown error'}`);
+      showErrorToast('Error', `Failed to save assignment: ${error.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
