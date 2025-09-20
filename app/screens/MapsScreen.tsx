@@ -817,86 +817,94 @@ const MapsScreen: React.FC = () => {
     }
   }, [editFormData, formURL, selectedCategory]);
 
-  const submitMeeting = async () => {
-    if (!meetingData.title || !meetingData.scheduledTime) {
-      showWarningToast('Missing details', 'Please fill in all required fields.');
-      return;
-    }
+  const submitMeeting = useCallback(
+    async (mode: 'approval' | 'direct') => {
+      if (!selectedOrg) {
+        showWarningToast('Select an organization', 'Choose an organization before scheduling.');
+        return;
+      }
 
-    const meetingDate = new Date(meetingData.meetingDateTime);
-    if (Number.isNaN(meetingDate.getTime())) {
-      Alert.alert('Error', 'Invalid meeting time selected.');
-      return;
-    }
+      const trimmedReason = meetingData.meetingReason.trim();
+      if (!meetingData.organizationTitle || !trimmedReason || !meetingData.meetingDateTime) {
+        showWarningToast('Missing details', 'Please fill in all required fields.');
+        return;
+      }
 
-    const now = new Date();
-    if (meetingDate.getTime() < now.getTime()) {
-      Alert.alert('Error', 'Please select a meeting time in the future.');
-      return;
-    }
+      const meetingDate = new Date(meetingData.meetingDateTime);
+      if (Number.isNaN(meetingDate.getTime())) {
+        Alert.alert('Error', 'Invalid meeting time selected.');
+        return;
+      }
 
-    const username = user?.name || user?.email || 'Unknown User';
-    const userEmail = user?.email ?? '';
-    const meetingsCollection = collection(db, 'meetings');
-    const meetingDocRef = doc(meetingsCollection);
-    const endDate = new Date(meetingDate);
-    endDate.setMinutes(endDate.getMinutes() + 30);
-    const nowIso = now.toISOString();
-    const approvalStatus = mode === 'direct' ? 'approved' : 'pending';
+      const now = new Date();
+      if (meetingDate.getTime() < now.getTime()) {
+        Alert.alert('Error', 'Please select a meeting time in the future.');
+        return;
+      }
 
-    const meetingRecord = {
-      _id: meetingDocRef.id,
-      title: meetingData.organizationTitle || selectedOrg.name,
-      username,
-      userEmail,
-      meetingReason: trimmedReason,
-      meetingDateTime: meetingDate.toISOString(),
-      meetingEndDateTime: endDate.toISOString(),
-      approvalStatus,
-      requestType: mode,
-      organizationMapsUrl: selectedOrg.mapsUrl ?? null,
-      organizationCity: selectedOrg.city ?? null,
-      createdAt: nowIso,
-      updatedAt: nowIso,
-      requestedBy: user?.id || userEmail || null,
-      approvalNotes: null,
-      ownerCalendarEventId: null as string | null,
-      sharedCalendarEventId: null as string | null,
-      calendarSyncEnabled: hasCalendarSync(),
-      approvedAt: mode === 'direct' ? nowIso : null,
-      approvedBy: mode === 'direct' ? userEmail : null,
-    };
+      const username = user?.name || user?.email || 'Unknown User';
+      const userEmail = user?.email ?? '';
+      const meetingsCollection = collection(db, 'meetings');
+      const meetingDocRef = doc(meetingsCollection);
+      const endDate = new Date(meetingDate.getTime() + 30 * 60 * 1000);
+      const nowIso = now.toISOString();
+      const approvalStatus = mode === 'direct' ? 'approved' : 'pending';
 
-    try {
-      await setDoc(meetingDocRef, meetingRecord);
+      const meetingRecord = {
+        _id: meetingDocRef.id,
+        title: meetingData.organizationTitle || selectedOrg.name,
+        username,
+        userEmail,
+        meetingReason: trimmedReason,
+        meetingDateTime: meetingDate.toISOString(),
+        meetingEndDateTime: endDate.toISOString(),
+        approvalStatus,
+        requestType: mode,
+        organizationMapsUrl: selectedOrg.mapsUrl ?? null,
+        organizationCity: selectedOrg.city ?? null,
+        createdAt: nowIso,
+        updatedAt: nowIso,
+        requestedBy: user?.id || userEmail || null,
+        approvalNotes: null,
+        ownerCalendarEventId: null as string | null,
+        sharedCalendarEventId: null as string | null,
+        calendarSyncEnabled: hasCalendarSync(),
+        approvedAt: mode === 'direct' ? nowIso : null,
+        approvedBy: mode === 'direct' ? userEmail : null,
+      };
 
-      const attendees = [userEmail, getSharedCalendarEmail()].filter(Boolean) as string[];
-      const descriptionLines = [
-        `Meeting with ${meetingRecord.title}`,
-        `Reason: ${trimmedReason}`,
-        `Requested by: ${username}`,
-        userEmail ? `Email: ${userEmail}` : null,
-      ].filter(Boolean) as string[];
+      try {
+        await setDoc(meetingDocRef, meetingRecord);
 
-      const calendarResult = await createCalendarEvents({
-        title: meetingRecord.title,
-        description: descriptionLines.join('\n'),
-        start: meetingRecord.meetingDateTime,
-        end: meetingRecord.meetingEndDateTime,
-        attendees,
-        organizer: userEmail || getSharedCalendarEmail(),
-        status: mode === 'approval' ? 'tentative' : 'confirmed',
-        ownerEventId: null,
-        sharedEventId: null,
-      });
-      showSuccessToast('Meeting request sent', 'Submitted for approval successfully.');
-      setShowMeetingForm(false);
-      setMeetingData(INITIAL_MEETING_FORM);
-    } catch (error) {
-      console.error('Error creating meeting:', error);
-      showErrorToast('Error', 'Failed to create meeting.');
-    }
-  };
+        const attendees = [userEmail, getSharedCalendarEmail()].filter(Boolean) as string[];
+        const descriptionLines = [
+          `Meeting with ${meetingRecord.title}`,
+          `Reason: ${trimmedReason}`,
+          `Requested by: ${username}`,
+          userEmail ? `Email: ${userEmail}` : null,
+        ].filter(Boolean) as string[];
+
+        await createCalendarEvents({
+          title: meetingRecord.title,
+          description: descriptionLines.join('\n'),
+          start: meetingRecord.meetingDateTime,
+          end: meetingRecord.meetingEndDateTime,
+          attendees,
+          organizer: userEmail || getSharedCalendarEmail(),
+          status: mode === 'approval' ? 'tentative' : 'confirmed',
+          ownerEventId: null,
+          sharedEventId: null,
+        });
+        showSuccessToast('Meeting request sent', 'Submitted for approval successfully.');
+        setShowMeetingForm(false);
+        setMeetingData(INITIAL_MEETING_FORM);
+      } catch (error) {
+        console.error('Error creating meeting:', error);
+        showErrorToast('Error', 'Failed to create meeting.');
+      }
+    },
+    [meetingData, selectedOrg, user]
+  );
 
   const computedMapRegion = useMemo<Region>(() => {
     const latitudes: number[] = [];

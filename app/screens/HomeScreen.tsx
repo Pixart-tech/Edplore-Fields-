@@ -9,6 +9,7 @@ import {
   Platform,
   ToastAndroid,
   Linking,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../src/context/AuthContext';

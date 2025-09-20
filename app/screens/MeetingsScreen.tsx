@@ -9,8 +9,10 @@ import {
   TextInput,
   RefreshControl,
   Platform,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { db } from '../../src/firebase';
 import {
   collection,
@@ -20,12 +22,20 @@ import {
   doc,
   setDoc,
   onSnapshot,
+  getDocs,
 } from 'firebase/firestore';
 import type { Unsubscribe } from 'firebase/firestore';
 import { useAuth } from '../../src/context/AuthContext';
 import { useTheme } from '../../src/context/ThemeContext';
 import Icon from '@expo/vector-icons/MaterialIcons';
-import { showErrorToast, showSuccessToast } from '../../src/utils/toast';
+import { showErrorToast } from '../../src/utils/toast';
+import {
+  cancelCalendarEvents,
+  createCalendarEvents,
+  getSharedCalendarEmail,
+  updateCalendarEvents,
+} from '../../src/services/calendar';
+import type { CalendarSyncResult } from '../../src/services/calendar';
 
 interface Meeting {
   _id: string;
@@ -108,34 +118,52 @@ const MeetingsScreen: React.FC = () => {
     []
   );
 
-  useEffect(() => {
-    loadMeetings();
-  }, []);
+  const buildMeetingsQuery = useCallback(() => {
+    if (!user) {
+      return null;
+    }
 
-  const loadMeetings = async () => {
+    const meetingsRef = collection(db, 'meetings');
+    return user.role === 'admin'
+      ? query(meetingsRef, orderBy('meetingDateTime', 'asc'))
+      : query(
+          meetingsRef,
+          where('userEmail', '==', user.email || ''),
+          orderBy('meetingDateTime', 'asc')
+        );
+  }, [user]);
+
+  const fetchMeetingsOnce = useCallback(async () => {
+    const meetingsQuery = buildMeetingsQuery();
+
+    if (!meetingsQuery) {
+      setMeetings([]);
+      setRefreshing(false);
+      setLoading(false);
+      return;
+    }
+
     try {
-      setLoading(true);
-      const meetingsQuery = user?.role === 'admin'
-        ? query(collection(db, 'meetings'), orderBy('created_at', 'desc'))
-        : query(collection(db, 'meetings'), where('created_by', '==', user?.id || user?.email || ''));
-      const snap = await getDocs(meetingsQuery);
-      setMeetings(snap.docs.map(d => d.data() as any));
+      const snapshot = await getDocs(meetingsQuery);
+      const mapped = snapshot.docs.map((docSnap) => normalizeMeeting(docSnap.id, docSnap.data()));
+      setMeetings(mapped);
     } catch (error) {
       console.error('Error loading meetings:', error);
       showErrorToast('Error', 'Failed to load meetings.');
     } finally {
-      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [buildMeetingsQuery, normalizeMeeting]);
 
+  useEffect(() => {
+    const meetingsQuery = buildMeetingsQuery();
+
+    if (!meetingsQuery) {
+      setMeetings([]);
+      return;
     }
 
     setLoading(true);
-    const meetingsRef = collection(db, 'meetings');
-    const constraints =
-      user.role === 'admin'
-        ? [orderBy('meetingDateTime', 'asc')]
-        : [where('userEmail', '==', user.email || ''), orderBy('meetingDateTime', 'asc')];
-    const meetingsQuery = query(meetingsRef, ...constraints);
-
     const unsubscribe: Unsubscribe = onSnapshot(
       meetingsQuery,
       (snapshot) => {
@@ -153,12 +181,12 @@ const MeetingsScreen: React.FC = () => {
     );
 
     return () => unsubscribe();
-  }, [normalizeMeeting, user]);
+  }, [buildMeetingsQuery, normalizeMeeting]);
 
-  const onRefresh = useCallback(() => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 600);
-  }, []);
+    await fetchMeetingsOnce();
+  }, [fetchMeetingsOnce]);
 
   const handleMeetingAction = useCallback((meeting: Meeting) => {
     setSelectedMeeting(meeting);
@@ -174,22 +202,6 @@ const MeetingsScreen: React.FC = () => {
     setRescheduleDateTime(null);
     setShowPicker(false);
   }, []);
-
-  const submitApproval = async (status: 'approved' | 'rejected') => {
-    if (!selectedMeeting) return;
-
-    try {
-      await setDoc(doc(db, 'meetings', selectedMeeting._id), { status, notes: approvalNotes, updated_at: new Date() }, { merge: true });
-      showSuccessToast('Meeting updated', `Meeting ${status} successfully.`);
-      setShowApprovalModal(false);
-      setApprovalNotes('');
-      setSelectedMeeting(null);
-      loadMeetings();
-    } catch (error) {
-      console.error('Error updating meeting:', error);
-      showErrorToast('Error', 'Failed to update meeting.');
-    }
-  }, [showApprovalModal]);
 
   const openPicker = useCallback((mode: 'date' | 'time') => {
     setPickerMode(mode);
