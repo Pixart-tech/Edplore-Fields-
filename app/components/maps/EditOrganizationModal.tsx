@@ -23,13 +23,22 @@ export type EditFormState = {
   contact: string;
   whatsapp: string;
   category: string;
+  type: string;
+  update: string;
+  website: string;
+  city: string;
+  state: string;
   pulseCode: string;
   status: string;
+  numberOfStudents: string;
   currentPublication: string;
   currentPublicationOther: string;
   currentStatus: string;
   currentStatusDetails: string;
   assignee: string;
+  decisionMakerName: string;
+  phoneDM: string;
+  ho: string;
   guests: string[];
   additionalGuests: string;
   addOns: string[];
@@ -174,7 +183,7 @@ const EditOrganizationModal: React.FC<Props> = ({
             <Text style={[styles.inputLabel, { color: colors.text }]}>Update</Text>
             <TextInput
               style={[styles.textInput, { borderColor: colors.border, color: colors.text }]}
-              value={formData.contact}
+              value={formData.update}
               onChangeText={(value) => onChange('update', value)}
               placeholder="Let us kow the client update"
               placeholderTextColor={colors.secondary}
@@ -186,17 +195,29 @@ const EditOrganizationModal: React.FC<Props> = ({
             <Text style={[styles.inputLabel, { color: colors.text }]}>Website</Text>
             <TextInput
               style={[styles.textInput, { borderColor: colors.border, color: colors.text }]}
-              value={formData.contact}
+              value={formData.website}
               onChangeText={(value) => onChange('website', value)}
               placeholder="Add website link here"
               placeholderTextColor={colors.secondary}
             />
 
             <Text style={[styles.inputLabel, { color: colors.text }]}>City</Text>
-            {renderPicker(currentStatusOptions, formData.city, 'cities', 'Select City')}
-            
+            <TextInput
+              style={[styles.textInput, { borderColor: colors.border, color: colors.text }]}
+              value={formData.city}
+              onChangeText={(value) => onChange('city', value)}
+              placeholder="City"
+              placeholderTextColor={colors.secondary}
+            />
+
             <Text style={[styles.inputLabel, { color: colors.text }]}>Area</Text>
-            {renderPicker(whatsappOptions, formData.area, 'area', 'Select Area')}
+            <TextInput
+              style={[styles.textInput, { borderColor: colors.border, color: colors.text }]}
+              value={formData.state}
+              onChangeText={(value) => onChange('state', value)}
+              placeholder="Area"
+              placeholderTextColor={colors.secondary}
+            />
 
             <Text style={[styles.inputLabel, { color: colors.text }]}>Status</Text>
             <TextInput
@@ -210,8 +231,8 @@ const EditOrganizationModal: React.FC<Props> = ({
             <Text style={[styles.inputLabel, { color: colors.text }]}>Number of Students</Text>
             <TextInput
               style={[styles.textInput, { borderColor: colors.border, color: colors.text }]}
-              value={formData.numberofStudents}
-              onChangeText={(value) => onChange('numberofstudent', value)}
+              value={formData.numberOfStudents}
+              onChangeText={(value) => onChange('numberOfStudents', value)}
               placeholder="Total student count"
               placeholderTextColor={colors.secondary}
               keyboardType="phone-pad"
@@ -237,8 +258,8 @@ const EditOrganizationModal: React.FC<Props> = ({
             <Text style={[styles.inputLabel, { color: colors.text }]}>Decision Maker Name</Text>
             <TextInput
               style={[styles.textInput, { borderColor: colors.border, color: colors.text }]}
-              value={formData.dmname}
-              onChangeText={(value) => onChange('dmname', value)}
+              value={formData.decisionMakerName}
+              onChangeText={(value) => onChange('decisionMakerName', value)}
               placeholder="School Decision Maker Name"
               placeholderTextColor={colors.secondary}
             />
@@ -246,18 +267,18 @@ const EditOrganizationModal: React.FC<Props> = ({
             <Text style={[styles.inputLabel, { color: colors.text }]}>Decision Maker Phone Number</Text>
             <TextInput
               style={[styles.textInput, { borderColor: colors.border, color: colors.text }]}
-              value={formData.dmnumber}
-              onChangeText={(value) => onChange('dmnumber', value)}
+              value={formData.phoneDM}
+              onChangeText={(value) => onChange('phoneDM', value)}
               placeholder="School Decision Maker Number"
               placeholderTextColor={colors.secondary}
               keyboardType="phone-pad"
             />
 
-             <Text style={[styles.inputLabel, { color: colors.text }]}>Head Office Pulse Code</Text>
+            <Text style={[styles.inputLabel, { color: colors.text }]}>Head Office Pulse Code</Text>
             <TextInput
               style={[styles.textInput, { borderColor: colors.border, color: colors.text }]}
-              value={formData.hopulseCode}
-              onChangeText={(value) => onChange('hopulseCode', value)}
+              value={formData.ho}
+              onChangeText={(value) => onChange('ho', value)}
               placeholder="Head Office pulse code"
               placeholderTextColor={colors.secondary}
             />

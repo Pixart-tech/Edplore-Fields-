@@ -83,6 +83,10 @@ const OrganizationDetailsModal: React.FC<Props> = ({
       entries.push({ key: 'status', icon: 'assignment', text: `Status: ${organization.status}` });
     }
 
+    if (normalize(organization.update)) {
+      entries.push({ key: 'update', icon: 'notes', text: `Update: ${organization.update}` });
+    }
+
     if (normalize(organization.currentPublicationName)) {
       entries.push({
         key: 'currentPublication',

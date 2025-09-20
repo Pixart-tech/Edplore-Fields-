@@ -1,5 +1,5 @@
 export interface Organization {
-  mapsUrl?: string;
+  mapsUrl: string;
   name: string;
   latitude: number;
   longitude: number;
@@ -9,6 +9,7 @@ export interface Organization {
   contact?: string;
   description?: string;
   type?: string;
+  update?: string;
   ratings?: string;
   star?: string;
   website?: string;
@@ -19,13 +20,21 @@ export interface Organization {
   decisionMakerName?: string;
   phoneDM?: string;
   ho?: string;
-  currentStatus?:string;
+  currentStatus?: string;
   currentStatusDetails?: string;
   assignee?: string;
   whatsapp?: string;
   beforeSchool?: string;
   afterSchool?: string;
   addOns?: string;
+  guests?: string;
+  additionalGuests?: string;
+  eventTitle?: string;
+  startDate?: string;
+  startTime?: string;
+  endDate?: string;
+  endTime?: string;
+  address?: string;
   formUrl?: string;
 }
 

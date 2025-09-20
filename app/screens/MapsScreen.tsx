@@ -227,56 +227,86 @@ const MapsScreen: React.FC = () => {
   const parseJSONData = (jsonText: string): Organization[] => {
     try {
       const data = JSON.parse(jsonText);
-      
+
       if (!data.results || !Array.isArray(data.results)) {
         console.log('No results array found in response');
         return [];
       }
-      
-      const organizations: Organization[] = [];
-      
+
+      const organizationsByMapUrl = new Map<string, Organization>();
+
       data.results.forEach((item: any, index: number) => {
-        const coordinates = item['Co-ordinates'] || '';
+        const coordinates = typeof item['Co-ordinates'] === 'string' ? item['Co-ordinates'] : '';
         const coordParts = coordinates.split(',').map((coord: string) => coord.trim());
-        const latitude = parseFloat(coordParts[0]) || 0;
-        const longitude = parseFloat(coordParts[1]) || 0;
-        
+        const parsedLatitude = coordParts[0] ? Number.parseFloat(coordParts[0]) : Number.NaN;
+        const parsedLongitude = coordParts[1] ? Number.parseFloat(coordParts[1]) : Number.NaN;
+        const hasValidLatitude = Number.isFinite(parsedLatitude);
+        const hasValidLongitude = Number.isFinite(parsedLongitude);
+        const latitude = hasValidLatitude ? parsedLatitude : 0;
+        const longitude = hasValidLongitude ? parsedLongitude : 0;
+
+        const rawMapUrl =
+          item['Maps URL'] ||
+          item['Maps Link'] ||
+          item.mapsUrl ||
+          item['Map URL'] ||
+          item['mapurl'] ||
+          '';
+        const fallbackMapUrl =
+          hasValidLatitude && hasValidLongitude
+            ? `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`
+            : '';
+        const mapsUrl = (rawMapUrl || fallbackMapUrl).toString().trim();
+
+        if (!mapsUrl) {
+          console.warn(`Skipping record at index ${index} due to missing map URL`);
+          return;
+        }
+
         const org: Organization = {
-          mapsUrl: item['Maps URL'] || item['Maps Link'] || item.mapsUrl || item['Map URL'] || '',
+          mapsUrl,
           name: item.Title || 'Unknown Organization',
-          latitude: latitude,
-          longitude: longitude,
+          latitude,
+          longitude,
           city: item.City || 'Unknown City',
-          state: item.area || 'Unknown State',
+          state: item.area || item.State || 'Unknown State',
           category: item.Category || 'General',
           contact: item.Phone || '',
-          description: item.Title || '',
+          description: item.Description || item.Title || '',
           type: item.Type || '',
+          update: item.Update || item.Updates || '',
           ratings: item.Ratings || '',
           star: item.Star || '',
           website: item.Website || '',
           status: item.Status || '',
           pulseCode: item['Pulse Code'] || '',
-          numberOfStudents: item['Number of students'] || '',
-          currentPublicationName: item['Current Publication name '] || '',
+          numberOfStudents: item['Number of students'] || item['Number Of Students'] || '',
+          currentPublicationName: item['Current Publication name '] || item['Current Publication'] || '',
           decisionMakerName: item['Decision Maker Name'] || '',
-          phoneDM: item['Phone (DM)'] || '',
-          ho: item.HO || '',
+          phoneDM: item['Phone (DM)'] || item['Decision Maker Phone'] || '',
+          ho: item.HO || item['HO Pulse Code'] || '',
           currentStatus: item['Current Status'] || '',
           currentStatusDetails: item['Current Status Details'] || '',
-          assignee: item.Asignee || '',
-          whatsapp: item.Whatsapp || '',
+          assignee: item.Asignee || item.Assignee || '',
+          whatsapp: item.Whatsapp || item['WhatsApp'] || '',
           beforeSchool: item['Before School'] || '',
           afterSchool: item['After School'] || '',
-          addOns: item['Add-ons'] || '',
+          addOns: item['Add-ons'] || item['Add Ons'] || '',
+          guests: item.Guests || '',
+          additionalGuests: item['Additional Guests'] || '',
+          eventTitle: item['Event Title'] || '',
+          startDate: item['Start Date'] || item['Start date'] || '',
+          startTime: item['Start Time'] || '',
+          endDate: item['End Date'] || '',
+          endTime: item['End Time'] || '',
+          address: item.Address || '',
+          formUrl: item['Form URL'] || item['Form Link'] || item.formUrl || '',
         };
-        
-        if (org.latitude !== 0 && org.longitude !== 0) {
-          organizations.push(org);
-        }
+
+        organizationsByMapUrl.set(mapsUrl, org);
       });
-      
-      return organizations;
+
+      return Array.from(organizationsByMapUrl.values());
     } catch (error) {
       console.error('Error parsing JSON data:', error);
       return [];
@@ -409,18 +439,38 @@ const MapsScreen: React.FC = () => {
     );
     const addOnsOther = otherAddOns.join(', ');
 
+    const guestsList = selectedOrg.guests
+      ? selectedOrg.guests
+          .split(',')
+          .map((guest) => guest.trim())
+          .filter(Boolean)
+      : [];
+
     setEditFormData({
+      ...INITIAL_EDIT_FORM,
       name: selectedOrg.name,
+      address: selectedOrg.address ?? selectedOrg.description ?? '',
       contact: selectedOrg.contact ?? '',
       whatsapp: whatsappValue,
       category: resolvedCategory,
+      type: selectedOrg.type ?? '',
+      update: selectedOrg.update ?? '',
+      website: selectedOrg.website ?? '',
+      city: selectedOrg.city ?? '',
+      state: selectedOrg.state ?? '',
       pulseCode: selectedOrg.pulseCode ?? '',
       status: selectedOrg.status ?? '',
+      numberOfStudents: selectedOrg.numberOfStudents ?? '',
       currentPublication,
       currentPublicationOther,
       currentStatus: selectedOrg.currentStatus ?? '',
       currentStatusDetails: selectedOrg.currentStatusDetails ?? '',
       assignee: selectedOrg.assignee ?? '',
+      decisionMakerName: selectedOrg.decisionMakerName ?? '',
+      phoneDM: selectedOrg.phoneDM ?? '',
+      ho: selectedOrg.ho ?? '',
+      guests: guestsList,
+      additionalGuests: selectedOrg.additionalGuests ?? '',
       addOns: addOnsSelection,
       addOnsOther,
     });
@@ -457,18 +507,25 @@ const MapsScreen: React.FC = () => {
         return { success: true, skipped: true } as const;
       }
 
-      const recordKey =  organization.pulseCode || organization.mapsUrl;
-      if (!recordKey) {
-        console.warn('Missing record key for organization update:', organization.mapsUrl);
+      const hasCoordinates =
+        typeof organization.latitude === 'number' &&
+        typeof organization.longitude === 'number' &&
+        !Number.isNaN(organization.latitude) &&
+        !Number.isNaN(organization.longitude);
+
+      const mapsUrl = organization.mapsUrl
+        ? organization.mapsUrl.trim()
+        : hasCoordinates
+        ? `https://www.google.com/maps/search/?api=1&query=${organization.latitude},${organization.longitude}`
+        : '';
+
+      if (!mapsUrl) {
+        console.warn('Missing map URL for organization update');
         return { success: false, skipped: true } as const;
       }
 
-      const mapsUrl =
-        organization.mapsUrl ||
-        `https://www.google.com/maps/search/?api=1&query=${organization.latitude},${organization.longitude}`;
-
       const payload = {
-        key: recordKey,
+        key: mapsUrl,
         mapurl: mapsUrl,
         selectedCategory: category,
       };
@@ -539,17 +596,29 @@ const MapsScreen: React.FC = () => {
 
     const updatedOrg: Organization = {
       ...selectedOrg,
-      name: editFormData.name,
-      contact: editFormData.contact,
-      whatsapp: editFormData.whatsapp,
-      category: editFormData.category,
-      pulseCode: editFormData.pulseCode,
-      status: editFormData.status,
-      currentStatus: editFormData.currentStatus,
-      currentStatusDetails: editFormData.currentStatusDetails,
-      assignee: editFormData.assignee,
-      currentPublicationName: resolvedPublication,
+      name: editFormData.name.trim(),
+      address: editFormData.address.trim() || selectedOrg.address,
+      contact: editFormData.contact.trim(),
+      whatsapp: editFormData.whatsapp.trim(),
+      category: editFormData.category.trim(),
+      type: editFormData.type.trim(),
+      update: editFormData.update.trim(),
+      website: editFormData.website.trim(),
+      city: editFormData.city.trim(),
+      state: editFormData.state.trim(),
+      pulseCode: editFormData.pulseCode.trim(),
+      status: editFormData.status.trim(),
+      numberOfStudents: editFormData.numberOfStudents.trim(),
+      currentStatus: editFormData.currentStatus.trim(),
+      currentStatusDetails: editFormData.currentStatusDetails.trim(),
+      assignee: editFormData.assignee.trim(),
+      decisionMakerName: editFormData.decisionMakerName.trim(),
+      phoneDM: editFormData.phoneDM.trim(),
+      ho: editFormData.ho.trim(),
+      currentPublicationName: resolvedPublication.trim(),
       addOns: addOnsValue,
+      guests: guestsValue,
+      additionalGuests: editFormData.additionalGuests.trim(),
     };
 
     setOrganizations((prev) => prev.map((org) => (org.mapsUrl === updatedOrg.mapsUrl ? updatedOrg : org)));
