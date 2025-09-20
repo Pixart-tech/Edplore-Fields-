@@ -1,5 +1,15 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Alert, Linking, View, Switch, Text, AccessibilityInfo } from 'react-native';
+import {
+  Alert,
+  Linking,
+  View,
+  Switch,
+  Text,
+  AccessibilityInfo,
+  TouchableOpacity,
+  LayoutChangeEvent,
+  ScrollView,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { db } from '../../src/firebase';
 import { collection, doc, getDoc, setDoc } from 'firebase/firestore';
@@ -11,6 +21,7 @@ import { Region } from 'react-native-maps';
 import OrganizationDetailsModal from '../components/maps/OrganizationDetailsModal';
 import EditOrganizationModal, { EditFormState } from '../components/maps/EditOrganizationModal';
 import MeetingRequestModal, { MeetingFormState } from '../components/maps/MeetingRequestModal';
+import Icon from '@expo/vector-icons/MaterialIcons';
 import {
   createCalendarEvents,
   getSharedCalendarEmail,
@@ -62,6 +73,9 @@ const MapsScreen: React.FC = () => {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [previousSchoolsValue, setPreviousSchoolsValue] = useState<string | null>(null);
   const [clusterEnabled, setClusterEnabled] = useState(true);
+  const [legendVisible, setLegendVisible] = useState(false);
+  const [liveLegendVisible, setLiveLegendVisible] = useState(false);
+  const [toolbarHeight, setToolbarHeight] = useState(0);
   const handleClusterToggle = useCallback((nextValue: boolean) => {
     setClusterEnabled(nextValue);
     AccessibilityInfo.announceForAccessibility(`Clustering ${nextValue ? 'enabled' : 'disabled'}`);
@@ -140,6 +154,18 @@ const MapsScreen: React.FC = () => {
   const handleOrganizationPress = useCallback((organization: Organization) => {
     setSelectedOrg(organization);
     setShowDetails(true);
+  }, []);
+
+  const handleToolbarLayout = useCallback((event: LayoutChangeEvent) => {
+    setToolbarHeight(event.nativeEvent.layout.height);
+  }, []);
+
+  const toggleLegendVisibility = useCallback(() => {
+    setLegendVisible((prev) => !prev);
+  }, []);
+
+  const toggleLiveLegendVisibility = useCallback(() => {
+    setLiveLegendVisible((prev) => !prev);
   }, []);
 
   const locationText = useMemo(() => {
@@ -984,63 +1010,232 @@ const MapsScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}> 
-      <SearchBar
-        value={searchQuery}
-        onChange={setSearchQuery}
-        onClear={() => setSearchQuery('')}
-        colors={theme.colors}
-      />
-
-      {userAssignedData && (
-        <AssignedAreasSection
-          cities={userAssignedData.cities}
-          areas={userAssignedData.areas}
-          colors={theme.colors}
-        />
-      )}
-
-      <CategoryLegend categories={categoryLegendItems} colors={theme.colors} />
-
-      {user?.role === 'admin' && (
-        <LiveTrackingLegend
-          liveUsers={liveUsers}
-          colors={theme.colors}
-          colorMap={liveUserColors}
-        />
-      )}
-
-      <View style={styles.clusterToggleContainer}>
-        <Text style={[styles.clusterToggleLabel, { color: theme.colors.text }]}>Cluster On/Off</Text>
-        <Switch
-          value={clusterEnabled}
-          onValueChange={handleClusterToggle}
-          accessibilityLabel="Cluster On/Off"
-          accessibilityHint="Toggle to group or separate map markers"
-          accessibilityRole="switch"
-          accessibilityState={{ checked: clusterEnabled }}
-        />
-      </View>
-
-      <View style={{ flex: 1 }}>
-        <MapContent
-          organizations={filteredOrganizations}
-          computedMapRegion={computedMapRegion}
-          visibleRegion={visibleRegion}
-          onRegionChange={setVisibleRegion}
-          onOrganizationPress={handleOrganizationPress}
-          colors={theme.colors}
-          liveUsers={liveUsers}
-          liveUserColors={liveUserColors}
-          showLiveTracking={user?.role === 'admin'}
-          clusterEnabled={clusterEnabled}
-        />
-
-        {organizations.length > 0 && (
-          <Filter
-            allMarkers={organizations}
-            setFilteredMarkers={handleFilterUpdate}
+      <View style={styles.screenContent}>
+        <View style={styles.searchSection}>
+          <SearchBar
+            value={searchQuery}
+            onChange={setSearchQuery}
+            onClear={() => setSearchQuery('')}
+            colors={theme.colors}
           />
-        )}
+        </View>
+
+        <View style={styles.assignedWrapper}>
+          {userAssignedData && (
+            <AssignedAreasSection
+              cities={userAssignedData.cities}
+              areas={userAssignedData.areas}
+              colors={theme.colors}
+            />
+          )}
+        </View>
+
+        <View style={styles.mapSection}>
+          <MapContent
+            organizations={filteredOrganizations}
+            computedMapRegion={computedMapRegion}
+            visibleRegion={visibleRegion}
+            onRegionChange={setVisibleRegion}
+            onOrganizationPress={handleOrganizationPress}
+            colors={theme.colors}
+            liveUsers={liveUsers}
+            liveUserColors={liveUserColors}
+            showLiveTracking={user?.role === 'admin'}
+            clusterEnabled={clusterEnabled}
+          />
+
+          <View style={styles.mapOverlay} pointerEvents="box-none">
+            <View
+              style={[
+                styles.toolbarWrapper,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.border,
+                  borderWidth: 1,
+                },
+              ]}
+              onLayout={handleToolbarLayout}
+            >
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.toolbarScroll}
+              >
+                {organizations.length > 0 && (
+                  <Filter
+                    allMarkers={organizations}
+                    setFilteredMarkers={handleFilterUpdate}
+                    renderTrigger={({
+                      filtersVisible,
+                      filtersActive,
+                      activeFiltersCount,
+                      onToggle,
+                      onReset,
+                    }) => (
+                      <View style={styles.toolbarButtonWrapper}>
+                        <TouchableOpacity
+                          style={[
+                            styles.toolbarButton,
+                            {
+                              backgroundColor: theme.colors.surface,
+                              borderColor: filtersVisible ? theme.colors.primary : theme.colors.border,
+                            },
+                          ]}
+                          onPress={onToggle}
+                          activeOpacity={0.85}
+                          accessibilityLabel="Filter organizations"
+                          accessibilityHint="Opens filter options for the map markers"
+                        >
+                          <Icon name="filter-list" size={18} color={theme.colors.primary} />
+                          <Text style={[styles.toolbarButtonText, { color: theme.colors.text }]}>Filters</Text>
+                          {filtersActive && (
+                            <View style={[styles.badge, { backgroundColor: theme.colors.primary }]}>
+                              <Text style={styles.badgeText}>{activeFiltersCount}</Text>
+                            </View>
+                          )}
+                        </TouchableOpacity>
+                        {filtersActive && (
+                          <TouchableOpacity
+                            style={[
+                              styles.toolbarClearButton,
+                              {
+                                backgroundColor: theme.colors.surface,
+                                borderColor: theme.colors.border,
+                              },
+                            ]}
+                            onPress={onReset}
+                            activeOpacity={0.85}
+                            accessibilityLabel="Clear active filters"
+                          >
+                            <Icon name="clear" size={16} color={theme.colors.secondary} />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    )}
+                    anchorStyle={[styles.filterDropdown, { top: toolbarHeight + 12 }]}
+                    showStatusIndicator={false}
+                  />
+                )}
+
+                <View
+                  style={[
+                    styles.toolbarSwitch,
+                    {
+                      backgroundColor: theme.colors.surface,
+                      borderColor: clusterEnabled ? theme.colors.primary : theme.colors.border,
+                    },
+                  ]}
+                >
+                  <Icon name="scatter-plot" size={18} color={theme.colors.primary} />
+                  <Text style={[styles.toolbarSwitchLabel, { color: theme.colors.text }]}>Cluster</Text>
+                  <Switch
+                    value={clusterEnabled}
+                    onValueChange={handleClusterToggle}
+                    accessibilityLabel="Cluster markers"
+                    accessibilityHint="Toggle to group or separate map markers"
+                    accessibilityRole="switch"
+                    accessibilityState={{ checked: clusterEnabled }}
+                    trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
+                    thumbColor={clusterEnabled ? theme.colors.surface : undefined}
+                  />
+                </View>
+
+                <TouchableOpacity
+                  style={[
+                    styles.toolbarButton,
+                    {
+                      backgroundColor: theme.colors.surface,
+                      borderColor: legendVisible ? theme.colors.primary : theme.colors.border,
+                    },
+                  ]}
+                  onPress={toggleLegendVisibility}
+                  activeOpacity={0.85}
+                  accessibilityLabel="Toggle category legend"
+                  accessibilityState={{ selected: legendVisible }}
+                  disabled={categoryLegendItems.length === 0}
+                >
+                  <Icon
+                    name="palette"
+                    size={18}
+                    color={categoryLegendItems.length === 0 ? theme.colors.secondary : theme.colors.primary}
+                  />
+                  <Text
+                    style={[
+                      styles.toolbarButtonText,
+                      { color: categoryLegendItems.length === 0 ? theme.colors.secondary : theme.colors.text },
+                    ]}
+                  >
+                    Categories
+                  </Text>
+                </TouchableOpacity>
+
+                {user?.role === 'admin' && (
+                  <TouchableOpacity
+                    style={[
+                      styles.toolbarButton,
+                      {
+                        backgroundColor: theme.colors.surface,
+                        borderColor: liveLegendVisible ? theme.colors.primary : theme.colors.border,
+                      },
+                    ]}
+                    onPress={toggleLiveLegendVisibility}
+                    activeOpacity={0.85}
+                    accessibilityLabel="Toggle live tracking legend"
+                    accessibilityState={{ selected: liveLegendVisible }}
+                    disabled={liveUsers.length === 0}
+                  >
+                    <Icon
+                      name="gps-fixed"
+                      size={18}
+                      color={liveUsers.length === 0 ? theme.colors.secondary : theme.colors.primary}
+                    />
+                    <Text
+                      style={[
+                        styles.toolbarButtonText,
+                        { color: liveUsers.length === 0 ? theme.colors.secondary : theme.colors.text },
+                      ]}
+                    >
+                      Live Users
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </ScrollView>
+            </View>
+
+            <View style={styles.overlayPanels} pointerEvents="box-none">
+              {legendVisible && categoryLegendItems.length > 0 && (
+                <View
+                  style={[
+                    styles.overlayCard,
+                    { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+                  ]}
+                >
+                  <CategoryLegend
+                    categories={categoryLegendItems}
+                    colors={theme.colors}
+                    variant="overlay"
+                  />
+                </View>
+              )}
+
+              {user?.role === 'admin' && liveLegendVisible && liveUsers.length > 0 && (
+                <View
+                  style={[
+                    styles.overlayCard,
+                    { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
+                  ]}
+                >
+                  <LiveTrackingLegend
+                    liveUsers={liveUsers}
+                    colors={theme.colors}
+                    colorMap={liveUserColors}
+                    variant="overlay"
+                  />
+                </View>
+              )}
+            </View>
+          </View>
+        </View>
       </View>
 
       <OrganizationDetailsModal

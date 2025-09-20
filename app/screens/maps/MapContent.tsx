@@ -92,7 +92,6 @@ const MapContent: React.FC<MapContentProps> = ({
       </View>
     ) : (
       <MapView
-        key={`map-${organizations.length}`}
         style={styles.map}
         provider={PROVIDER_GOOGLE}
         initialRegion={computedMapRegion}
