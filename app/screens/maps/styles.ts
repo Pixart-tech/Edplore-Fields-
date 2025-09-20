@@ -104,6 +104,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
   },
+  clusterToggleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginHorizontal: 16,
+    marginTop: 8,
+  },
+  clusterToggleLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
   mapContainer: {
     flex: 1,
     marginTop: 4,

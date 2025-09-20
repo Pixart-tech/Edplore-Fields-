@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Alert, Linking, View } from 'react-native';
+import { Alert, Linking, View, Switch, Text, AccessibilityInfo } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { db } from '../../src/firebase';
 import { collection, addDoc, doc, getDoc } from 'firebase/firestore';
@@ -55,6 +55,11 @@ const MapsScreen: React.FC = () => {
   const [formURL, setFormURL] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState('');
   const [previousSchoolsValue, setPreviousSchoolsValue] = useState<string | null>(null);
+  const [clusterEnabled, setClusterEnabled] = useState(true);
+  const handleClusterToggle = useCallback((nextValue: boolean) => {
+    setClusterEnabled(nextValue);
+    AccessibilityInfo.announceForAccessibility(`Clustering ${nextValue ? 'enabled' : 'disabled'}`);
+  }, []);
 
   const extractFormEntryValue = useCallback((url: string | null, entryId: string): string => {
     if (!url) {
@@ -916,6 +921,18 @@ const MapsScreen: React.FC = () => {
         />
       )}
 
+      <View style={styles.clusterToggleContainer}>
+        <Text style={[styles.clusterToggleLabel, { color: theme.colors.text }]}>Cluster On/Off</Text>
+        <Switch
+          value={clusterEnabled}
+          onValueChange={handleClusterToggle}
+          accessibilityLabel="Cluster On/Off"
+          accessibilityHint="Toggle to group or separate map markers"
+          accessibilityRole="switch"
+          accessibilityState={{ checked: clusterEnabled }}
+        />
+      </View>
+
       <View style={{ flex: 1 }}>
         <MapContent
           organizations={filteredOrganizations}
@@ -927,6 +944,7 @@ const MapsScreen: React.FC = () => {
           liveUsers={liveUsers}
           liveUserColors={liveUserColors}
           showLiveTracking={user?.role === 'admin'}
+          clusterEnabled={clusterEnabled}
         />
 
         {organizations.length > 0 && (
