@@ -1,16 +1,33 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, Dimensions, Text } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Dimensions, Text, StyleProp, ViewStyle } from 'react-native';
 import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import { Picker } from '@react-native-picker/picker';
 import { moderateScale } from 'react-native-size-matters';
 import type { Organization } from '../types/organization';
 
+type FilterTriggerRenderProps = {
+  filtersVisible: boolean;
+  filtersActive: boolean;
+  activeFiltersCount: number;
+  onToggle: () => void;
+  onReset: () => void;
+};
+
 type FilterProps = {
   allMarkers: Organization[];
   setFilteredMarkers: (markers: Organization[]) => void;
+  renderTrigger?: (props: FilterTriggerRenderProps) => React.ReactNode;
+  anchorStyle?: StyleProp<ViewStyle>;
+  showStatusIndicator?: boolean;
 };
 
-const Filter: React.FC<FilterProps> = ({ allMarkers, setFilteredMarkers }) => {
+const Filter: React.FC<FilterProps> = ({
+  allMarkers,
+  setFilteredMarkers,
+  renderTrigger,
+  anchorStyle,
+  showStatusIndicator,
+}) => {
   const [filtersVisible, setFiltersVisible] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
@@ -83,21 +100,42 @@ const Filter: React.FC<FilterProps> = ({ allMarkers, setFilteredMarkers }) => {
 
   const filtersActive = activeFiltersCount > 0;
 
+  const toggleFilters = useCallback(() => {
+    setFiltersVisible((visible) => !visible);
+  }, []);
+
+  const containerStyles = useMemo(
+    () => [renderTrigger ? styles.toolbarContainer : styles.overlayContainer],
+    [renderTrigger]
+  );
+
+  const shouldShowStatusIndicator = showStatusIndicator ?? !renderTrigger;
+
   return (
-    <View style={styles.overlayContainer} pointerEvents="box-none">
-      <TouchableOpacity
-        style={styles.filterButton}
-        onPress={() => setFiltersVisible((visible) => !visible)}
-        activeOpacity={0.8}
-      >
-        <View style={styles.filterButtonContent}>
-          <FontAwesome name="filter" style={styles.filterIcon} />
-          <Text style={styles.filterButtonText}>Filter</Text>
-        </View>
-      </TouchableOpacity>
+    <View style={containerStyles} pointerEvents="box-none">
+      {renderTrigger ? (
+        renderTrigger({
+          filtersVisible,
+          filtersActive,
+          activeFiltersCount,
+          onToggle: toggleFilters,
+          onReset: handleReset,
+        })
+      ) : (
+        <TouchableOpacity
+          style={styles.filterButton}
+          onPress={toggleFilters}
+          activeOpacity={0.8}
+        >
+          <View style={styles.filterButtonContent}>
+            <FontAwesome name="filter" style={styles.filterIcon} />
+            <Text style={styles.filterButtonText}>Filter</Text>
+          </View>
+        </TouchableOpacity>
+      )}
 
       {filtersVisible && (
-        <View style={styles.filterContainer}>
+        <View style={[styles.filterContainer, anchorStyle]}>
           <Text style={styles.filterLabel}>Category</Text>
           <Picker
             selectedValue={selectedCategory}
@@ -143,7 +181,7 @@ const Filter: React.FC<FilterProps> = ({ allMarkers, setFilteredMarkers }) => {
         </View>
       )}
 
-      {filtersActive && (
+      {filtersActive && shouldShowStatusIndicator && (
         <TouchableOpacity style={styles.statusIndicator} onPress={handleReset} activeOpacity={0.85}>
           <FontAwesome name="times-circle" style={styles.statusIcon} />
           <Text style={styles.statusText}>
@@ -158,6 +196,10 @@ const Filter: React.FC<FilterProps> = ({ allMarkers, setFilteredMarkers }) => {
 const styles = StyleSheet.create({
   overlayContainer: {
     ...StyleSheet.absoluteFillObject,
+    zIndex: 1,
+  },
+  toolbarContainer: {
+    position: 'relative',
     zIndex: 1,
   },
   filterButton: {

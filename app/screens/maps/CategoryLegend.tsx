@@ -8,16 +8,35 @@ import type { ThemeColors } from './types';
 interface CategoryLegendProps {
   categories: string[];
   colors: ThemeColors;
+  variant?: 'default' | 'overlay';
 }
 
-const CategoryLegend: React.FC<CategoryLegendProps> = ({ categories, colors }) => {
+const CategoryLegend: React.FC<CategoryLegendProps> = ({ categories, colors, variant = 'default' }) => {
   if (categories.length === 0) {
     return null;
   }
 
+  const containerStyles = [
+    styles.legendContainer,
+    { backgroundColor: colors.surface },
+  ];
+
+  if (variant === 'overlay') {
+    containerStyles.push(styles.legendOverlayContainer, { backgroundColor: 'transparent' });
+  }
+
   return (
-    <View style={[styles.legendContainer, { backgroundColor: colors.surface }]}>
-      <Text style={[styles.legendText, { fontWeight: 'bold', marginBottom: 8, color: colors.text }]}>Categories:</Text>
+    <View style={containerStyles}>
+      <Text
+        style={[
+          styles.legendText,
+          styles.legendTitle,
+          { color: colors.text },
+          variant === 'overlay' && styles.legendOverlayTitle,
+        ]}
+      >
+        Categories
+      </Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.legendScroll}>
         {categories.map((category) => (
           <View key={category} style={styles.legendItem}>
