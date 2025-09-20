@@ -12,7 +12,7 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import SimpleDateTimePicker from '../components/common/SimpleDateTimePicker';
 import { db } from '../../src/firebase';
 import {
   collection,
@@ -209,7 +209,7 @@ const MeetingsScreen: React.FC = () => {
   }, []);
 
   const handlePickerChange = useCallback(
-    (_: unknown, date?: Date) => {
+    (_event: { type: 'set'; nativeEvent: { timestamp: number } }, date?: Date) => {
       if (Platform.OS !== 'ios') {
         setShowPicker(false);
       }
@@ -691,10 +691,9 @@ const MeetingsScreen: React.FC = () => {
                       </TouchableOpacity>
                     </View>
                   )}
-                  <DateTimePicker
+                  <SimpleDateTimePicker
                     value={rescheduleDateTime ?? new Date()}
                     mode={pickerMode}
-                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
                     onChange={handlePickerChange}
                     minimumDate={new Date()}
                   />

@@ -10,7 +10,7 @@ import {
   Platform,
 } from 'react-native';
 import Icon from '@expo/vector-icons/MaterialIcons';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import SimpleDateTimePicker from '../common/SimpleDateTimePicker';
 
 type ThemeColors = {
   primary: string;
@@ -84,7 +84,10 @@ const MeetingRequestModal: React.FC<Props> = ({
     setShowPicker(true);
   };
 
-  const handlePickerChange = (_: unknown, selectedDate?: Date) => {
+  const handlePickerChange = (
+    _event: { type: 'set'; nativeEvent: { timestamp: number } },
+    selectedDate?: Date,
+  ) => {
     if (Platform.OS !== 'ios') {
       setShowPicker(false);
     }
@@ -115,10 +118,9 @@ const MeetingRequestModal: React.FC<Props> = ({
     }
 
     const picker = (
-      <DateTimePicker
+      <SimpleDateTimePicker
         value={formData.meetingDateTime ?? new Date()}
         mode={pickerMode}
-        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
         onChange={handlePickerChange}
         minimumDate={new Date()}
       />
