@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Alert, Linking, View, Platform, ToastAndroid } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { db } from '../../src/firebase';
-import { collection, addDoc, doc, getDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, setDoc } from 'firebase/firestore';
 import { useAuth } from '../../src/context/AuthContext';
 import { useLocation } from '../../src/context/LocationContext';
 import { useTheme } from '../../src/context/ThemeContext';
@@ -11,6 +11,11 @@ import { Region } from 'react-native-maps';
 import OrganizationDetailsModal from '../components/maps/OrganizationDetailsModal';
 import EditOrganizationModal, { EditFormState } from '../components/maps/EditOrganizationModal';
 import MeetingRequestModal, { MeetingFormState } from '../components/maps/MeetingRequestModal';
+import {
+  createCalendarEvents,
+  getSharedCalendarEmail,
+  hasCalendarSync,
+} from '../../src/services/calendar';
 import type { Organization } from '../types/organization';
 
 import AssignedAreasSection from './maps/AssignedAreasSection';
@@ -55,6 +60,11 @@ const MapsScreen: React.FC = () => {
   const [formURL, setFormURL] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState('');
   const [previousSchoolsValue, setPreviousSchoolsValue] = useState<string | null>(null);
+  const [clusterEnabled, setClusterEnabled] = useState(true);
+  const handleClusterToggle = useCallback((nextValue: boolean) => {
+    setClusterEnabled(nextValue);
+    AccessibilityInfo.announceForAccessibility(`Clustering ${nextValue ? 'enabled' : 'disabled'}`);
+  }, []);
 
   const showToast = useCallback(
     (type: 'success' | 'error', message: string) => {
@@ -409,10 +419,20 @@ const MapsScreen: React.FC = () => {
     }
   };
 
-  const handleScheduleMeeting = () => {
+  const handleScheduleMeeting = useCallback(() => {
+    if (!selectedOrg) {
+      Alert.alert('Select an organization', 'Please pick an organization to schedule a meeting.');
+      return;
+    }
+
+    setMeetingData({
+      organizationTitle: selectedOrg.name,
+      meetingReason: '',
+      meetingDateTime: new Date(),
+    });
     setShowDetails(false);
     setShowMeetingForm(true);
-  };
+  }, [selectedOrg]);
 
   const handleEditOrganization = useCallback(() => {
     if (!selectedOrg) {
@@ -503,9 +523,12 @@ const MapsScreen: React.FC = () => {
     [setSelectedCategory]
   );
 
-  const handleMeetingInputChange = useCallback((field: keyof MeetingFormState, value: string) => {
-    setMeetingData((prev) => ({ ...prev, [field]: value }));
-  }, []);
+  const handleMeetingInputChange = useCallback(
+    (field: keyof MeetingFormState, value: MeetingFormState[keyof MeetingFormState]) => {
+      setMeetingData((prev) => ({ ...prev, [field]: value }));
+    },
+    []
+  );
 
   const handleCancelEdit = useCallback(() => {
     setShowEditForm(false);
@@ -829,24 +852,102 @@ const MapsScreen: React.FC = () => {
     }
   }, [editFormData, formURL, selectedCategory]);
 
-  const submitMeeting = async () => {
-    if (!meetingData.title || !meetingData.scheduledTime) {
-      Alert.alert('Error', 'Please fill in all required fields');
+  const submitMeeting = async (mode: 'approval' | 'direct') => {
+    if (!selectedOrg) {
+      Alert.alert('Select an organization', 'Please choose an organization before scheduling a meeting.');
       return;
     }
 
+    const trimmedReason = meetingData.meetingReason.trim();
+    if (!trimmedReason || !meetingData.meetingDateTime) {
+      Alert.alert('Error', 'Please provide a meeting reason and choose a date & time.');
+      return;
+    }
+
+    const meetingDate = new Date(meetingData.meetingDateTime);
+    if (Number.isNaN(meetingDate.getTime())) {
+      Alert.alert('Error', 'Invalid meeting time selected.');
+      return;
+    }
+
+    const now = new Date();
+    if (meetingDate.getTime() < now.getTime()) {
+      Alert.alert('Error', 'Please select a meeting time in the future.');
+      return;
+    }
+
+    const username = user?.name || user?.email || 'Unknown User';
+    const userEmail = user?.email ?? '';
+    const meetingsCollection = collection(db, 'meetings');
+    const meetingDocRef = doc(meetingsCollection);
+    const endDate = new Date(meetingDate);
+    endDate.setMinutes(endDate.getMinutes() + 30);
+    const nowIso = now.toISOString();
+    const approvalStatus = mode === 'direct' ? 'approved' : 'pending';
+
+    const meetingRecord = {
+      _id: meetingDocRef.id,
+      title: meetingData.organizationTitle || selectedOrg.name,
+      username,
+      userEmail,
+      meetingReason: trimmedReason,
+      meetingDateTime: meetingDate.toISOString(),
+      meetingEndDateTime: endDate.toISOString(),
+      approvalStatus,
+      requestType: mode,
+      organizationMapsUrl: selectedOrg.mapsUrl ?? null,
+      organizationCity: selectedOrg.city ?? null,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+      requestedBy: user?.id || userEmail || null,
+      approvalNotes: null,
+      ownerCalendarEventId: null as string | null,
+      sharedCalendarEventId: null as string | null,
+      calendarSyncEnabled: hasCalendarSync(),
+      approvedAt: mode === 'direct' ? nowIso : null,
+      approvedBy: mode === 'direct' ? userEmail : null,
+    };
+
     try {
-      await addDoc(collection(db, 'meetings'), {
-        title: meetingData.title,
-        description: meetingData.description || null,
-        location_id: selectedOrg?.mapsUrl,
-        scheduled_time: new Date(meetingData.scheduledTime).toISOString(),
-        attendees: [user?.email],
-        status: 'pending',
-        created_at: new Date(),
-        created_by: user?.id || user?.email || 'anonymous',
+      await setDoc(meetingDocRef, meetingRecord);
+
+      const attendees = [userEmail, getSharedCalendarEmail()].filter(Boolean) as string[];
+      const descriptionLines = [
+        `Meeting with ${meetingRecord.title}`,
+        `Reason: ${trimmedReason}`,
+        `Requested by: ${username}`,
+        userEmail ? `Email: ${userEmail}` : null,
+      ].filter(Boolean) as string[];
+
+      const calendarResult = await createCalendarEvents({
+        title: meetingRecord.title,
+        description: descriptionLines.join('\n'),
+        start: meetingRecord.meetingDateTime,
+        end: meetingRecord.meetingEndDateTime,
+        attendees,
+        organizer: userEmail || getSharedCalendarEmail(),
+        status: mode === 'approval' ? 'tentative' : 'confirmed',
+        ownerEventId: null,
+        sharedEventId: null,
       });
-      Alert.alert('Success', 'Meeting request submitted for approval');
+
+      if (calendarResult?.ownerEventId || calendarResult?.sharedEventId) {
+        await setDoc(
+          meetingDocRef,
+          {
+            ownerCalendarEventId: calendarResult.ownerEventId ?? null,
+            sharedCalendarEventId: calendarResult.sharedEventId ?? null,
+          },
+          { merge: true }
+        );
+      }
+
+      Alert.alert(
+        mode === 'direct' ? 'Meeting scheduled' : 'Request submitted',
+        mode === 'direct'
+          ? 'Your meeting has been scheduled and added to the shared calendar.'
+          : 'Your meeting request has been sent for approval.'
+      );
       setShowMeetingForm(false);
       setMeetingData(INITIAL_MEETING_FORM);
     } catch (error) {
@@ -958,6 +1059,18 @@ const MapsScreen: React.FC = () => {
         />
       )}
 
+      <View style={styles.clusterToggleContainer}>
+        <Text style={[styles.clusterToggleLabel, { color: theme.colors.text }]}>Cluster On/Off</Text>
+        <Switch
+          value={clusterEnabled}
+          onValueChange={handleClusterToggle}
+          accessibilityLabel="Cluster On/Off"
+          accessibilityHint="Toggle to group or separate map markers"
+          accessibilityRole="switch"
+          accessibilityState={{ checked: clusterEnabled }}
+        />
+      </View>
+
       <View style={{ flex: 1 }}>
         <MapContent
           organizations={filteredOrganizations}
@@ -969,6 +1082,7 @@ const MapsScreen: React.FC = () => {
           liveUsers={liveUsers}
           liveUserColors={liveUserColors}
           showLiveTracking={user?.role === 'admin'}
+          clusterEnabled={clusterEnabled}
         />
 
         {organizations.length > 0 && (
